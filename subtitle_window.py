@@ -373,9 +373,11 @@ class SubtitleWindow(QDialog):
         label_sub = QLabel("Subtitles")
         layout.addWidget(label_sub)
 
+
         # Tab widget to show generated images
         self.image_tab_widget = QTabWidget()
         layout.addWidget(self.image_tab_widget)
+
 
         self.list_widget = QListWidget()
         self.list_widget.itemDoubleClicked.connect(self.on_item_double_clicked)
@@ -1880,6 +1882,10 @@ class SubtitleWindow(QDialog):
         label_sub = QLabel("Subtitles")
         layout.addWidget(label_sub)
 
+        # Tab widget to show generated images for selected words
+        self.image_tab_widget = QTabWidget()
+        layout.addWidget(self.image_tab_widget)
+
         self.word_viewer_list_widget = QListWidget()
         self.word_viewer_list_widget.itemDoubleClicked.connect(
             self.on_word_viewer_item_double_clicked
@@ -1901,10 +1907,6 @@ class SubtitleWindow(QDialog):
         self.word_viewer_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.word_viewer_scroll.setWidget(container)
         layout.addWidget(self.word_viewer_scroll)
-
-        self.word_viewer_image_label = QLabel()
-        self.word_viewer_image_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.word_viewer_image_label)
 
         self.btn_generate_word_image = QPushButton("Generate Image")
         self.btn_generate_word_image.setEnabled(False)
@@ -3139,7 +3141,7 @@ class SubtitleWindow(QDialog):
         self.selected_word_text = ""
         self.selected_word_label = None
         self.btn_generate_word_image.setEnabled(False)
-        self.word_viewer_image_label.clear()
+        self.image_tab_widget.clear()
 
         if not self.db_manager:
             return
