@@ -248,6 +248,10 @@ class SubtitleWindow(QDialog):
         self.action_subtitle_editor = QAction("Subtitle Editor", self)
         self.action_subtitle_editor.triggered.connect(self.open_subtitle_editor)
 
+        # Action to open the Word Viewer page
+        self.action_word_viewer = QAction("Word Viewer", self)
+        self.action_word_viewer.triggered.connect(self.open_word_viewer)
+
         self.editor_button_group = None  # We'll create it in refresh_subtitle_editor
 
         # Add them to toolbar
@@ -256,6 +260,7 @@ class SubtitleWindow(QDialog):
         self.toolbar.addAction(self.action_create_anki)
         self.toolbar.addAction(self.action_create_migaku)
         self.toolbar.addAction(self.action_subtitle_editor)
+        self.toolbar.addAction(self.action_word_viewer)
 
         # 4) Create the stacked widget
         self.stacked_widget = QStackedWidget()
@@ -280,6 +285,11 @@ class SubtitleWindow(QDialog):
         self.page_subtitle_editor = QWidget()
         self.build_subtitle_editor_page(self.page_subtitle_editor)
         self.stacked_widget.addWidget(self.page_subtitle_editor)
+
+        # Page 4: Word Viewer Page
+        self.page_word_viewer = QWidget()
+        self.build_word_viewer_page(self.page_word_viewer)
+        self.stacked_widget.addWidget(self.page_word_viewer)
 
 
 
@@ -1813,6 +1823,25 @@ class SubtitleWindow(QDialog):
 
         parent_widget.setLayout(layout)
 
+    # -- Build the Word Viewer Page (page 4 in stacked_widget)
+    def build_word_viewer_page(self, parent_widget: QWidget):
+        layout = QVBoxLayout(parent_widget)
+        title = QLabel("Word Viewer")
+        font = title.font()
+        font.setBold(True)
+        font.setPointSize(12)
+        title.setFont(font)
+        layout.addWidget(title)
+
+        self.word_viewer_text = QPlainTextEdit()
+        layout.addWidget(self.word_viewer_text)
+
+        btn_back = QPushButton("Back to Subtitles")
+        btn_back.clicked.connect(self.on_back_from_word_viewer)
+        layout.addWidget(btn_back)
+
+        parent_widget.setLayout(layout)
+
     # -- NEW: Invoked when user clicks "Dictionary Search" in the translations
     def on_open_dictionary_search(self):
         """
@@ -1868,6 +1897,17 @@ class SubtitleWindow(QDialog):
 
         # 3) Switch to the Anki Editor page
         self.stacked_widget.setCurrentWidget(self.page_anki_editor)
+
+    # ------------------------------------------------------------------
+    # Word Viewer page handlers
+    # ------------------------------------------------------------------
+    def open_word_viewer(self):
+        """Switch to the Word Viewer page."""
+        self.stacked_widget.setCurrentWidget(self.page_word_viewer)
+
+    def on_back_from_word_viewer(self):
+        """Return to the Subtitles page from the Word Viewer."""
+        self.stacked_widget.setCurrentWidget(self.page_subtitles)
 
     # ---------------------------------------------------------------------
     #  Called when user clicks "Create Anki Card" in the toolbar
