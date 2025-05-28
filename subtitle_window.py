@@ -1928,12 +1928,12 @@ class SubtitleWindow(QDialog):
     # ------------------------------------------------------------------
     def open_word_viewer(self):
         """Switch to the Word Viewer page."""
-        # Store the current toolbar actions so we can restore them later
+        # Save and remove current toolbar actions
         self._old_actions = self.toolbar.actions()
         for act in self._old_actions:
             self.toolbar.removeAction(act)
 
-        # Create a single Back action for the Word Viewer
+        # Add a single "Back" action
         self.action_back_from_word_viewer = QAction("Back to Subtitles", self)
         self.action_back_from_word_viewer.triggered.connect(
             self.on_back_from_word_viewer
@@ -1941,32 +1941,32 @@ class SubtitleWindow(QDialog):
         self.toolbar.addAction(self.action_back_from_word_viewer)
         self._word_viewer_actions = [self.action_back_from_word_viewer]
 
-        # Load the text from the currently selected subtitle line
+        # Populate content based on the currently selected subtitle
         current_row = self.list_widget.currentRow()
         if current_row < 0 or current_row >= len(self._subtitle_lines):
             logger.info("No subtitle selected -> Word Viewer will be empty.")
-            self.word_viewer_text.setPlainText("")
+            self.populate_word_viewer("")
         else:
             _start, _end, text = self._subtitle_lines[current_row]
-            self.word_viewer_text.setPlainText(text)
+            self.populate_word_viewer(text)
 
-        # Switch to the Word Viewer page
+        # Show the Word Viewer page
         self.stacked_widget.setCurrentWidget(self.page_word_viewer)
 
     def on_back_from_word_viewer(self):
         """Return to the Subtitles page from the Word Viewer."""
-        # Remove Word Viewer toolbar actions
+        # Remove Word Viewer-specific actions
         for act in getattr(self, "_word_viewer_actions", []):
             self.toolbar.removeAction(act)
         if hasattr(self, "_word_viewer_actions"):
             self._word_viewer_actions.clear()
 
-        # Restore the original toolbar actions
+        # Restore original toolbar actions
         for act in getattr(self, "_old_actions", []):
             self.toolbar.addAction(act)
 
-        # Clear Word Viewer text and return to main page
-        self.word_viewer_text.clear()
+        # Clear Word Viewer state and return to the subtitles page
+        self.populate_word_viewer("")
         self.stacked_widget.setCurrentWidget(self.page_subtitles)
 
     # ---------------------------------------------------------------------
@@ -3177,15 +3177,5 @@ class SubtitleWindow(QDialog):
         from PyQt5.QtWidgets import QMessageBox
         QMessageBox.warning(self, "Image Generation Failed", message)
         self.word_image_worker = None
-
-            QMessageBox.warning(self, "Anki Error", "Could not store the image in Anki’s media collection.")
-            return
-
-        full_path = os.path.join(self.anki_media_path, image_filename)
-        if os.path.exists(full_path):
-            pixmap = QPixmap(full_path)
-            if not pixmap.isNull():
-                self.word_viewer_image_label.setPixmap(pixmap.scaledToWidth(300, Qt.SmoothTransformation))
-        QMessageBox.information(self, "Image Generated", f"Created AI image for word: {word_text}\nSaved as: {image_filename}")
 
 
