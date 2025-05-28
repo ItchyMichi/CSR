@@ -22,6 +22,9 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton,
     QHBoxLayout, QMessageBox
 )
+
+from PyQt5.QtCore import QTimer, Qt
+from image_generation_thread import ImageGenerationThread
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 
 
@@ -62,6 +65,7 @@ class WordImageWorker(QThread):
             self.finished.emit(image_data)
         except Exception as e:
             self.error.emit(str(e))
+
 
 class SplitSubtitleDialog(QDialog):
     """
@@ -251,6 +255,8 @@ class SubtitleWindow(QDialog):
         self.selected_dict_form_ids = set()
         self.anki_selected_dict_form_surfaces = {}
         self.current_font_size = 10  # Default font size
+        self._image_queue = []  # background image generation tasks
+        self._current_worker = None
 
         self.selected_word_id = None
         self.selected_word_text = ""
@@ -1711,12 +1717,7 @@ class SubtitleWindow(QDialog):
             self.generate_image_from_custom_prompt(prompt_text.strip())
 
     def generate_image_from_custom_prompt(self, prompt_text):
-        """
-        Generates an AI image from the given prompt_text, stores it in Anki’s media folder,
-        and appends <img src="filename.png"> to self.field_image.
-        """
-        import os, uuid, base64, requests
-        import openai
+        """Queue image generation from a custom user prompt."""
         from PyQt5.QtWidgets import QMessageBox
 
         if not self.openai_api_key:
@@ -1725,51 +1726,15 @@ class SubtitleWindow(QDialog):
             return
 
         if not prompt_text:
-            QMessageBox.warning(self, "Empty Prompt",
-                                "No prompt text provided.")
+            QMessageBox.warning(self, "Empty Prompt", "No prompt text provided.")
             return
 
-        # 1) Call OpenAI with the user-specified prompt
-        openai.api_key = self.openai_api_key
-        try:
-            response = openai.Image.create(
-                prompt=prompt_text,
-                n=1,
-                size="512x512"  # or "1024x1024"
-            )
-            image_url = response["data"][0]["url"]
-        except Exception as e:
-            QMessageBox.warning(self, "OpenAI Error", f"Could not generate image:\n{e}")
-            return
-
-        # 2) Download the image bytes
-        try:
-            image_data = requests.get(image_url).content
-        except Exception as e:
-            QMessageBox.warning(self, "Network Error", f"Could not download image:\n{e}")
-            return
-
-        # 3) Store in Anki media
-        image_filename = f"prompt_image_{uuid.uuid4().hex}.png"
-        b64_data = base64.b64encode(image_data).decode("utf-8")
-
-        res = self.anki.invoke("storeMediaFile", filename=image_filename, data=b64_data)
-        if res is None:
-            QMessageBox.warning(self, "Anki Error",
-                                "Could not store the image in Anki’s media collection.")
-            return
-
-        # 4) Append <img src="filename.png"> to self.field_image
-        new_img_tag = f'<img src="{image_filename}">'
-        existing_value = self.field_image.text().strip()
-        updated_value = (existing_value + " " + new_img_tag).strip()
-        self.field_image.setText(updated_value)
-
-        # 5) Inform the user
-        QMessageBox.information(self, "Custom Image Created",
-                                f"Successfully generated an image from your prompt.\n\n"
-                                f"Prompt: {prompt_text}\n"
-                                f"Saved as: {image_filename}")
+        self.queue_image_generation(prompt_text)
+        QMessageBox.information(
+            self,
+            "Image Queued",
+            "Image generation has been queued and will run in the background."
+        )
 
     def clear_anki_editor_fields(self):
         """
@@ -2931,22 +2896,51 @@ class SubtitleWindow(QDialog):
 
         print("[DEBUG] Exiting capture_screenshot_placeholder normally.")
 
+    # ------------------------------------------------------------------
+    # Background Image Generation Queue
+    # ------------------------------------------------------------------
+    def queue_image_generation(self, word_text: str, dict_form_id: int = 0):
+        """Add a new image generation task to the queue."""
+        self._image_queue.append((word_text, dict_form_id))
+        if self._current_worker is None:
+            QTimer.singleShot(0, self._process_next_image_request)
+
+    def _process_next_image_request(self):
+        if not self._image_queue or self._current_worker is not None:
+            return
+
+        word_text, dict_form_id = self._image_queue.pop(0)
+        worker = ImageGenerationThread(word_text, dict_form_id,
+                                       self.openai_api_key, self.anki)
+        worker.done.connect(self.on_image_generated)
+        worker.error.connect(self.on_image_error)
+        self._current_worker = worker
+        worker.start()
+
+    def on_image_generated(self, dict_form_id: int, filename: str):
+        """Handle successful image generation."""
+        new_tag = f'<img src="{filename}">' 
+        existing = self.field_image.text().strip()
+        updated = (existing + " " + new_tag).strip()
+        self.field_image.setText(updated)
+
+        self._current_worker = None
+        QTimer.singleShot(0, self._process_next_image_request)
+
+    def on_image_error(self, message: str):
+        QMessageBox.warning(self, "Image Generation Error", message)
+        self._current_worker = None
+        QTimer.singleShot(0, self._process_next_image_request)
+
     def generate_image_placeholder(self):
-        """
-        Generate an AI image from the current subtitle text, store it in Anki media,
-        and append a <img src="filename.png"> to self.field_image.
-        """
-        import os, uuid, base64, requests
-        import openai
+        """Queue image generation for the currently selected subtitle text."""
         from PyQt5.QtWidgets import QMessageBox
 
-        # 1) Check we have a key
         if not self.openai_api_key:
             QMessageBox.warning(self, "Missing API Key",
                                 "No OpenAI_API_Key is set. Please configure it first.")
             return
 
-        # 2) Select the subtitle text (or use self.field_native_sentence)
         index = self._last_active_index
         if index < 0 or index >= len(self._subtitle_lines):
             QMessageBox.warning(self, "No Subtitle Selected",
@@ -2959,15 +2953,14 @@ class SubtitleWindow(QDialog):
                                 "The selected subtitle text is empty.")
             return
 
-        # 3) Call OpenAI
-        openai.api_key = self.openai_api_key
-        prompt = (
-            f"Create a clear, literal, and intuitive illustration that visually conveys the core meaning of the word or phrase '{text}'. "
-            f"Your illustration must depict a realistic scene or scenario where the meaning of '{text}' can be easily understood at a glance, without requiring textual explanation. "
-            f"Include visual cues such as relevant actions, emotions, context, and appropriate background elements. "
-            f"Clearly focus on expressing the central concept or idea behind '{text}'. "
-            f"Avoid ambiguity or overly abstract visuals; instead, prioritize clarity, realism, and immediate comprehension suitable for language learners."
+        # Queue the request
+        self.queue_image_generation(text)
+        QMessageBox.information(
+            self,
+            "Image Queued",
+            "Image generation has been queued and will run in the background."
         )
+
         try:
             response = openai.Image.create(
                 prompt=prompt,
