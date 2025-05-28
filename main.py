@@ -532,6 +532,10 @@ class CentralHub(QMainWindow):
         self.action_rescan.triggered.connect(self.rescan_all_sources)
         self.media_browser_toolbar.addAction(self.action_rescan)
 
+        self.action_remove_source = QAction("Remove Source", self)
+        self.action_remove_source.triggered.connect(self.remove_source)
+        self.media_browser_toolbar.addAction(self.action_remove_source)
+
         # Anki Manager Toolbar
         self.anki_manager_toolbar = QToolBar("Anki Manager Toolbar")
         self.anki_manager_toolbar.setMovable(False)
@@ -694,6 +698,52 @@ class CentralHub(QMainWindow):
         player_widget.player.pause = False
 
         logger.info(f"Sought active video tab to {start_time} seconds.")
+
+    def remove_source(self):
+        """Remove the selected source, show, or episode and all its associated data."""
+        try:
+            item = self.tree_widget.currentItem()
+            if not item:
+                self.statusBar().showMessage("Please select an item to remove.")
+                return
+
+            user_data = item.data(0, Qt.UserRole)
+
+            # Determine actual path from user_data
+            if isinstance(user_data, tuple):
+                if len(user_data) >= 3 and isinstance(user_data[2], str):
+                    item_path = user_data[2]  # e.g., ("media_file", id, path)
+                elif len(user_data) >= 2 and isinstance(user_data[1], str):
+                    item_path = user_data[1]  # e.g., ("folder", path)
+                else:
+                    raise TypeError(f"Tuple in UserRole lacks valid path: {user_data}")
+            elif isinstance(user_data, str):
+                item_path = user_data
+            else:
+                raise TypeError(f"Unsupported UserRole data: {user_data}")
+
+            reply = QMessageBox.question(
+                self, "Remove",
+                f"Remove selected item and all related data?\n\n{item_path}",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if reply != QMessageBox.Yes:
+                self.statusBar().showMessage("Remove canceled.")
+                return
+
+            success = self.db.remove_path(item_path)
+
+            if success:
+                self.load_all_sources_as_relative_trees()
+                self.statusBar().showMessage(f"Item removed: {item_path}")
+            else:
+                self.statusBar().showMessage("Failed to remove item.")
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"An error occurred:\n{str(e)}")
 
     def on_main_stack_changed(self, index):
         """

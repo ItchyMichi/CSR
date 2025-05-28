@@ -464,6 +464,75 @@ class DatabaseManager:
         logger.info(f"Next subtitle row: {row}")
         return row if row else None  # row is (start_time, end_time, content)
 
+    def remove_path(self, item_path: str) -> bool:
+        """Remove a source, show folder, or episode and cascade all related entries."""
+        try:
+            import os
+            import logging
+            logger = logging.getLogger(__name__)
+            cur = self._conn.cursor()
+
+            item_path = os.path.normpath(item_path)
+
+            # Check if it's a source
+            cur.execute("SELECT source_id FROM sources WHERE folder_path = ?", (item_path,))
+            row = cur.fetchone()
+            is_source = bool(row)
+            source_id = row[0] if row else None
+
+            # Get all media files
+            cur.execute("SELECT media_id, file_path FROM media")
+            media_rows = cur.fetchall()
+
+            media_ids = []
+            path_prefix = item_path + (os.sep if not item_path.endswith(os.sep) else "")
+
+            for mid, file_path in media_rows:
+                norm_file = os.path.normpath(file_path)
+                if is_source:
+                    if norm_file.startswith(path_prefix):
+                        media_ids.append(mid)
+                else:
+                    if norm_file == item_path or norm_file.startswith(path_prefix):
+                        media_ids.append(mid)
+
+            if not media_ids and not is_source:
+                logger.warning(f"No media found under path: {item_path}")
+                return False
+
+            logger.debug(f"Media IDs to delete: {media_ids}")
+
+            text_ids = set()
+            for m_id in media_ids:
+                cur.execute("SELECT subtitle_file FROM subtitles WHERE media_id = ?", (m_id,))
+                for (sub_file,) in cur.fetchall():
+                    cur.execute("SELECT text_id FROM texts WHERE source = ? AND type = ?", (sub_file, "video_subtitle"))
+                    res = cur.fetchone()
+                    if res:
+                        text_ids.add(res[0])
+
+            for t_id in text_ids:
+                cur.execute("DELETE FROM texts WHERE text_id = ?", (t_id,))
+            for m_id in media_ids:
+                cur.execute("DELETE FROM media WHERE media_id = ?", (m_id,))
+
+            if is_source:
+                cur.execute("DELETE FROM sources WHERE source_id = ?", (source_id,))
+
+            # Clean up orphaned word/kanji forms
+            cur.execute(
+                "DELETE FROM surface_forms WHERE surface_form_id NOT IN (SELECT surface_form_id FROM surface_form_sentences)")
+            cur.execute(
+                "DELETE FROM dictionary_forms WHERE dict_form_id NOT IN (SELECT dict_form_id FROM surface_forms)")
+
+            self._conn.commit()
+            logger.info(f"Deleted {len(media_ids)} media, {len(text_ids)} texts, path={item_path}")
+            return True
+
+        except Exception as e:
+            logger.error("Failed to remove path", exc_info=True)
+            return False
+
     def get_subtitle_for_time(self, media_id: int, current_time: float):
         """
         Return (start_time, end_time, content) if there's a subtitle that covers
