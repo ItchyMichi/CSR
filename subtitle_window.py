@@ -262,6 +262,9 @@ class SubtitleWindow(QDialog):
         self.selected_word_text = ""
         self.selected_word_label = None
 
+        # Track word selections in the Word Viewer page
+        self.word_viewer_selected_dict_form_ids = set()
+
 
         self.setWindowFlags(
             Qt.Window |
@@ -3100,11 +3103,18 @@ class SubtitleWindow(QDialog):
         for (sf_id, surface, df_id, base_form, known) in forms:
             cont = QWidget()
             vbox = QVBoxLayout(cont)
+
             lbl_word = ClickableWordLabel(surface, df_id)
             base_lbl = QLabel(f"({base_form})")
+            cb = QCheckBox()
+
             lbl_word.clicked.connect(lambda w=surface, d=df_id, l=lbl_word: self.on_word_label_clicked(w, d, l))
+            cb.stateChanged.connect(lambda state, d=df_id: self.on_word_viewer_checkbox_changed(d, state))
+
             vbox.addWidget(lbl_word, alignment=Qt.AlignCenter)
             vbox.addWidget(base_lbl, alignment=Qt.AlignCenter)
+            vbox.addWidget(cb, alignment=Qt.AlignHCenter)
+
             cont.setLayout(vbox)
             self.word_viewer_layout.addWidget(cont)
 
@@ -3116,6 +3126,13 @@ class SubtitleWindow(QDialog):
         self.selected_word_text = word_text
         label.setStyleSheet("background-color: yellow;")
         self.btn_generate_word_image.setEnabled(True)
+
+    def on_word_viewer_checkbox_changed(self, dict_form_id: int, state: int):
+        checked = (state == Qt.Checked)
+        if checked:
+            self.word_viewer_selected_dict_form_ids.add(dict_form_id)
+        else:
+            self.word_viewer_selected_dict_form_ids.discard(dict_form_id)
 
     def on_generate_word_image_clicked(self):
         if not self.selected_word_text:
