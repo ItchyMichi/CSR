@@ -236,6 +236,8 @@ class MyVideoPlayerWidget(QWidget):
 
         self.video_container = QFrame()
         main_layout.addWidget(self.video_container, stretch=1)
+        self.video_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video_container.mouseDoubleClickEvent = self.on_video_double_click
 
         # We do NOT do "file://" + ... again.
         # Just store the already-correct mpv_uri from the DB:
@@ -298,6 +300,12 @@ class MyVideoPlayerWidget(QWidget):
 
         self.is_dragging_slider = False
         logger.info("Video player widget initialized.")
+
+    def on_video_double_click(self, event):
+        # When user double-clicks the video, request fullscreen toggle
+        main_window = self.window()  # get the top-level window
+        if main_window:
+            main_window.toggle_fullscreen()
 
     def contextMenuEvent(self, event):
         menu = QMenu(self)
@@ -643,6 +651,11 @@ class CentralHub(QMainWindow):
         # self.load_directory_tree_for_source()
         self.statusBar().showMessage("Ready")
 
+        fullscreen_action = QAction("Toggle Full Screen", self)
+        fullscreen_action.setShortcut(Qt.Key_F)  # or QKeySequence("F")
+        fullscreen_action.triggered.connect(self.toggle_fullscreen)
+        self.addAction(fullscreen_action)  # make sure the action is enabled for key shortcuts
+
     ##########################################################################
     # Switching Between the Two Main Pages (and Video, Study)
     ##########################################################################
@@ -663,6 +676,12 @@ class CentralHub(QMainWindow):
             pass
         elif index == 3:
             self.action_show_study.setChecked(True)
+
+    def toggle_fullscreen(self):
+        if not self.isFullScreen():
+            self.showFullScreen()  # enter full screen mode:contentReference[oaicite:0]{index=0}
+        else:
+            self.showNormal()  # exit full screen mode:contentReference[oaicite:1]{index=1}
 
     def on_study_stack_changed(self, new_index: int):
         # Check if the new page is your Explore page
