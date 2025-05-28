@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QCheckBox, QWidget, QSizePolicy, QToolBar, QAction, QMessageBox,
     QStackedWidget, QLineEdit, QPushButton, QFormLayout, QGroupBox,
     QHBoxLayout, QPlainTextEdit, QSpacerItem, QComboBox, QToolButton, QWidgetAction, QButtonGroup, QRadioButton,
-    QInputDialog, QMenu
+    QInputDialog, QMenu, QTabWidget
 
 )
 
@@ -257,6 +257,7 @@ class SubtitleWindow(QDialog):
         self.current_font_size = 10  # Default font size
         self._image_queue = []  # background image generation tasks
         self._current_worker = None
+        self.word_image_workers = []  # track multiple WordImageWorker instances
 
         self.selected_word_id = None
         self.selected_word_text = ""
@@ -371,6 +372,10 @@ class SubtitleWindow(QDialog):
 
         label_sub = QLabel("Subtitles")
         layout.addWidget(label_sub)
+
+        # Tab widget to show generated images
+        self.image_tab_widget = QTabWidget()
+        layout.addWidget(self.image_tab_widget)
 
         self.list_widget = QListWidget()
         self.list_widget.itemDoubleClicked.connect(self.on_item_double_clicked)
@@ -3186,8 +3191,7 @@ class SubtitleWindow(QDialog):
         self.generate_image_for_word(self.selected_word_text)
 
     def generate_image_for_word(self, word_text: str):
-        """Generate an image using OpenAI for the given word_text and display it."""
-        import os, uuid, base64, requests, openai
+        """Generate an image using OpenAI for ``word_text`` and show it in a new tab."""
 
         if not self.openai_api_key:
             QMessageBox.warning(self, "Missing API Key", "No OpenAI_API_Key is set. Please configure it first.")
@@ -3201,38 +3205,50 @@ class SubtitleWindow(QDialog):
             f"Avoid ambiguity or overly abstract visuals; instead, prioritize clarity, realism, and immediate comprehension suitable for language learners."
         )
 
-        openai.api_key = self.openai_api_key
-        try:
-            response = openai.Image.create(prompt=prompt, n=1, size="512x512")
-            image_url = response["data"][0]["url"]
-        except Exception as e:
-            QMessageBox.warning(self, "OpenAI Error", f"Could not generate image:\n{e}")
-            return
+        tab = QWidget()
+        vbox = QVBoxLayout(tab)
+        lbl = QLabel("Generating...")
+        lbl.setAlignment(Qt.AlignCenter)
+        vbox.addWidget(lbl)
+        self.image_tab_widget.addTab(tab, word_text)
+        self.image_tab_widget.setCurrentWidget(tab)
 
-        try:
-            image_data = requests.get(image_url).content
-        except Exception as e:
-            QMessageBox.warning(self, "Network Error", f"Could not download image:\n{e}")
-            return
+        worker = WordImageWorker(self.openai_api_key, prompt)
+        self.word_image_workers.append(worker)
 
+        def handle_finished(image_data, *, w=worker, label=lbl, word=word_text):
+            from PyQt5.QtGui import QPixmap
+            import uuid, base64
 
-        image_filename = f"word_image_{uuid.uuid4().hex}.png"
-        b64_data = base64.b64encode(image_data).decode("utf-8")
-        res = self.anki.invoke("storeMediaFile", filename=image_filename, data=b64_data)
-        if res is None:
+            image_filename = f"word_image_{uuid.uuid4().hex}.png"
+            b64_data = base64.b64encode(image_data).decode("utf-8")
+            res = self.anki.invoke("storeMediaFile", filename=image_filename, data=b64_data)
+            if res is None:
+                QMessageBox.warning(self, "Anki Error", "Could not store the image in Anki’s media collection.")
+            else:
+                new_tag = f'<img src="{image_filename}">' 
+                existing = self.field_image.text().strip()
+                updated = (existing + " " + new_tag).strip()
+                self.field_image.setText(updated)
 
-            QMessageBox.warning(self, "Anki Error",
-                                "Could not store the image in Anki’s media collection.")
-            return
+            pix = QPixmap()
+            pix.loadFromData(image_data)
+            label.setPixmap(pix)
+            label.setScaledContents(True)
 
-        new_img_tag = f'<img src="{image_filename}">'
-        existing_value = self.field_image.text().strip()
-        updated_value = (existing_value + " " + new_img_tag).strip()
-        self.field_image.setText(updated_value)
+            if w in self.word_image_workers:
+                self.word_image_workers.remove(w)
+            QMessageBox.information(self, "Word Image Generated", f"Generated image for '{word}'.")
 
-        QMessageBox.information(self, "Word Image Generated",
-                                f"Generated image for '{self._pending_word_image_word}'.")
-        self.word_image_worker = None
+        def handle_error(message, *, w=worker, label=lbl):
+            label.setText("Error generating image")
+            QMessageBox.warning(self, "Image Generation Failed", message)
+            if w in self.word_image_workers:
+                self.word_image_workers.remove(w)
+
+        worker.finished.connect(handle_finished)
+        worker.error.connect(handle_error)
+        worker.start()
 
     def on_word_image_error(self, message: str):
         from PyQt5.QtWidgets import QMessageBox
