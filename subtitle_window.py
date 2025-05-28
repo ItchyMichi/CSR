@@ -4,7 +4,7 @@ from typing import Optional
 
 from content_parser import ContentParser
 from PyQt5.QtGui import QPalette, QColor
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QThread
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QListWidget, QListWidgetItem,
@@ -38,6 +38,30 @@ class ClickableWordLabel(QLabel):
         self.clicked.emit(self.word_text, self.dict_form_id)
         super().mousePressEvent(event)
 
+
+
+class WordImageWorker(QThread):
+    """Background worker to generate a word image via OpenAI."""
+    finished = pyqtSignal(bytes)
+    error = pyqtSignal(str)
+
+    def __init__(self, api_key: str, prompt: str, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.api_key = api_key
+        self.prompt = prompt
+
+    def run(self):
+        import openai
+        import requests
+
+        try:
+            openai.api_key = self.api_key
+            response = openai.Image.create(prompt=self.prompt, n=1, size="512x512")
+            image_url = response["data"][0]["url"]
+            image_data = requests.get(image_url).content
+            self.finished.emit(image_data)
+        except Exception as e:
+            self.error.emit(str(e))
 
 class SplitSubtitleDialog(QDialog):
     """
@@ -227,9 +251,11 @@ class SubtitleWindow(QDialog):
         self.selected_dict_form_ids = set()
         self.anki_selected_dict_form_surfaces = {}
         self.current_font_size = 10  # Default font size
+
         self.selected_word_id = None
         self.selected_word_text = ""
         self.selected_word_label = None
+
 
         self.setWindowFlags(
             Qt.Window |
@@ -1622,6 +1648,10 @@ class SubtitleWindow(QDialog):
         btn_prompt_image.clicked.connect(self.on_prompt_image_clicked)
         image_layout.addWidget(btn_prompt_image)
 
+        btn_generate_word_image = QPushButton("Generate Word Image")
+        btn_generate_word_image.clicked.connect(self.generate_word_image_async)
+        image_layout.addWidget(btn_generate_word_image)
+
         form_layout.addRow("Images:", image_layout)
         # -----------------------------------------------------------
 
@@ -2977,6 +3007,42 @@ class SubtitleWindow(QDialog):
                                 f"File saved as: {image_filename}")
 
 
+    def generate_word_image_async(self):
+        """Generate an image for the word in ``field_native_word`` using OpenAI."""
+        from PyQt5.QtWidgets import QMessageBox
+
+        word_text = self.field_native_word.text().strip()
+        if not word_text:
+            QMessageBox.warning(self, "No Word", "Please enter or select a word first.")
+            return
+
+        if not self.openai_api_key:
+            QMessageBox.warning(self, "Missing API Key",
+                                "No OpenAI_API_Key is set. Please configure it first.")
+            return
+
+        base_word = word_text
+        if self.anki_selected_dict_form_ids and self.db_manager:
+            df_id = next(iter(self.anki_selected_dict_form_ids))
+            info = self.db_manager.get_dict_form_info(df_id)
+            if info and info.get("base_form"):
+                base_word = info["base_form"]
+
+        prompt = f"Create a clear, literal illustration that shows the meaning of the word '{base_word}'."
+
+        self._pending_word_image_word = base_word
+        self.word_image_worker = WordImageWorker(self.openai_api_key, prompt)
+        self.word_image_worker.finished.connect(self.on_word_image_generated)
+        self.word_image_worker.error.connect(self.on_word_image_error)
+        self.word_image_worker.start()
+
+    def on_word_image_generated(self, image_data: bytes):
+        """Handle the image bytes produced by ``WordImageWorker``."""
+        import base64
+        import uuid
+        from PyQt5.QtWidgets import QMessageBox
+
+
     # ------------------------------------------------------------------
     # Word Viewer helpers
     # ------------------------------------------------------------------
@@ -3060,10 +3126,30 @@ class SubtitleWindow(QDialog):
             QMessageBox.warning(self, "Network Error", f"Could not download image:\n{e}")
             return
 
+
         image_filename = f"word_image_{uuid.uuid4().hex}.png"
         b64_data = base64.b64encode(image_data).decode("utf-8")
         res = self.anki.invoke("storeMediaFile", filename=image_filename, data=b64_data)
         if res is None:
+
+            QMessageBox.warning(self, "Anki Error",
+                                "Could not store the image in Anki’s media collection.")
+            return
+
+        new_img_tag = f'<img src="{image_filename}">'
+        existing_value = self.field_image.text().strip()
+        updated_value = (existing_value + " " + new_img_tag).strip()
+        self.field_image.setText(updated_value)
+
+        QMessageBox.information(self, "Word Image Generated",
+                                f"Generated image for '{self._pending_word_image_word}'.")
+        self.word_image_worker = None
+
+    def on_word_image_error(self, message: str):
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.warning(self, "Image Generation Failed", message)
+        self.word_image_worker = None
+
             QMessageBox.warning(self, "Anki Error", "Could not store the image in Anki’s media collection.")
             return
 
@@ -3073,4 +3159,5 @@ class SubtitleWindow(QDialog):
             if not pixmap.isNull():
                 self.word_viewer_image_label.setPixmap(pixmap.scaledToWidth(300, Qt.SmoothTransformation))
         QMessageBox.information(self, "Image Generated", f"Created AI image for word: {word_text}\nSaved as: {image_filename}")
+
 
