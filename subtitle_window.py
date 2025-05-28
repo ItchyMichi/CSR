@@ -373,12 +373,6 @@ class SubtitleWindow(QDialog):
         label_sub = QLabel("Subtitles")
         layout.addWidget(label_sub)
 
-
-        # Tab widget to show generated images
-        self.image_tab_widget = QTabWidget()
-        layout.addWidget(self.image_tab_widget)
-
-
         self.list_widget = QListWidget()
         self.list_widget.itemDoubleClicked.connect(self.on_item_double_clicked)
         layout.addWidget(self.list_widget)
