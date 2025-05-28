@@ -22,7 +22,22 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton,
     QHBoxLayout, QMessageBox
 )
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, pyqtSignal
+
+
+class ClickableWordLabel(QLabel):
+    """Small QLabel subclass that emits a signal when clicked."""
+    clicked = pyqtSignal(str, int)
+
+    def __init__(self, text: str, dict_form_id: int, parent=None):
+        super().__init__(text, parent)
+        self.word_text = text
+        self.dict_form_id = dict_form_id
+
+    def mousePressEvent(self, event):
+        self.clicked.emit(self.word_text, self.dict_form_id)
+        super().mousePressEvent(event)
+
 
 class SplitSubtitleDialog(QDialog):
     """
@@ -212,6 +227,9 @@ class SubtitleWindow(QDialog):
         self.selected_dict_form_ids = set()
         self.anki_selected_dict_form_surfaces = {}
         self.current_font_size = 10  # Default font size
+        self.selected_word_id = None
+        self.selected_word_text = ""
+        self.selected_word_label = None
 
         self.setWindowFlags(
             Qt.Window |
@@ -280,6 +298,11 @@ class SubtitleWindow(QDialog):
         self.page_subtitle_editor = QWidget()
         self.build_subtitle_editor_page(self.page_subtitle_editor)
         self.stacked_widget.addWidget(self.page_subtitle_editor)
+
+        # Page 4: Word Viewer Page
+        self.page_word_viewer = QWidget()
+        self.build_word_viewer_page(self.page_word_viewer)
+        self.stacked_widget.addWidget(self.page_word_viewer)
 
 
 
@@ -1813,6 +1836,35 @@ class SubtitleWindow(QDialog):
 
         parent_widget.setLayout(layout)
 
+    # ------------------------------------------------------------------
+    # Build the Word Viewer Page (page 4 in stacked_widget)
+    # ------------------------------------------------------------------
+    def build_word_viewer_page(self, parent_widget: QWidget):
+        layout = QVBoxLayout(parent_widget)
+
+        self.word_viewer_subtitle_label = QLabel("")
+        self.word_viewer_subtitle_label.setWordWrap(True)
+        layout.addWidget(self.word_viewer_subtitle_label)
+
+        self.word_viewer_scroll = QScrollArea()
+        self.word_viewer_scroll.setWidgetResizable(True)
+        container = QWidget()
+        self.word_viewer_layout = QHBoxLayout(container)
+        self.word_viewer_layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.word_viewer_scroll.setWidget(container)
+        layout.addWidget(self.word_viewer_scroll)
+
+        self.word_viewer_image_label = QLabel()
+        self.word_viewer_image_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.word_viewer_image_label)
+
+        self.btn_generate_word_image = QPushButton("Generate Image")
+        self.btn_generate_word_image.setEnabled(False)
+        self.btn_generate_word_image.clicked.connect(self.on_generate_word_image_clicked)
+        layout.addWidget(self.btn_generate_word_image)
+
+        parent_widget.setLayout(layout)
+
     # -- NEW: Invoked when user clicks "Dictionary Search" in the translations
     def on_open_dictionary_search(self):
         """
@@ -2905,3 +2957,100 @@ class SubtitleWindow(QDialog):
         QMessageBox.information(self, "Image Generated",
                                 f"Created AI image for subtitle:\n{text}\n"
                                 f"File saved as: {image_filename}")
+
+    # ------------------------------------------------------------------
+    # Word Viewer helpers
+    # ------------------------------------------------------------------
+    def populate_word_viewer(self, subtitle_text: str):
+        """Fill the word viewer page with words from subtitle_text."""
+        self.word_viewer_subtitle_label.setText(subtitle_text)
+        while self.word_viewer_layout.count():
+            item = self.word_viewer_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        self.selected_word_id = None
+        self.selected_word_text = ""
+        self.selected_word_label = None
+        self.btn_generate_word_image.setEnabled(False)
+        self.word_viewer_image_label.clear()
+
+        if not self.db_manager:
+            return
+
+        forms = self.db_manager.get_surface_forms_for_text_content(subtitle_text)
+        if not forms:
+            self.word_viewer_layout.addWidget(QLabel("No words found for this subtitle."))
+            return
+
+        for (sf_id, surface, df_id, base_form, known) in forms:
+            cont = QWidget()
+            vbox = QVBoxLayout(cont)
+            lbl_word = ClickableWordLabel(surface, df_id)
+            base_lbl = QLabel(f"({base_form})")
+            lbl_word.clicked.connect(lambda w=surface, d=df_id, l=lbl_word: self.on_word_label_clicked(w, d, l))
+            vbox.addWidget(lbl_word, alignment=Qt.AlignCenter)
+            vbox.addWidget(base_lbl, alignment=Qt.AlignCenter)
+            cont.setLayout(vbox)
+            self.word_viewer_layout.addWidget(cont)
+
+    def on_word_label_clicked(self, word_text: str, dict_form_id: int, label: QLabel):
+        if self.selected_word_label is not None:
+            self.selected_word_label.setStyleSheet("")
+        self.selected_word_label = label
+        self.selected_word_id = dict_form_id
+        self.selected_word_text = word_text
+        label.setStyleSheet("background-color: yellow;")
+        self.btn_generate_word_image.setEnabled(True)
+
+    def on_generate_word_image_clicked(self):
+        if not self.selected_word_text:
+            QMessageBox.warning(self, "No Word Selected", "Please select a word first.")
+            return
+
+        self.generate_image_for_word(self.selected_word_text)
+
+    def generate_image_for_word(self, word_text: str):
+        """Generate an image using OpenAI for the given word_text and display it."""
+        import os, uuid, base64, requests, openai
+
+        if not self.openai_api_key:
+            QMessageBox.warning(self, "Missing API Key", "No OpenAI_API_Key is set. Please configure it first.")
+            return
+
+        prompt = (
+            f"Create a clear, literal, and intuitive illustration that visually conveys the core meaning of the word or phrase '{word_text}'. "
+            f"Your illustration must depict a realistic scene or scenario where the meaning of '{word_text}' can be easily understood at a glance, without requiring textual explanation. "
+            f"Include visual cues such as relevant actions, emotions, context, and appropriate background elements. "
+            f"Clearly focus on expressing the central concept or idea behind '{word_text}'. "
+            f"Avoid ambiguity or overly abstract visuals; instead, prioritize clarity, realism, and immediate comprehension suitable for language learners."
+        )
+
+        openai.api_key = self.openai_api_key
+        try:
+            response = openai.Image.create(prompt=prompt, n=1, size="512x512")
+            image_url = response["data"][0]["url"]
+        except Exception as e:
+            QMessageBox.warning(self, "OpenAI Error", f"Could not generate image:\n{e}")
+            return
+
+        try:
+            image_data = requests.get(image_url).content
+        except Exception as e:
+            QMessageBox.warning(self, "Network Error", f"Could not download image:\n{e}")
+            return
+
+        image_filename = f"word_image_{uuid.uuid4().hex}.png"
+        b64_data = base64.b64encode(image_data).decode("utf-8")
+        res = self.anki.invoke("storeMediaFile", filename=image_filename, data=b64_data)
+        if res is None:
+            QMessageBox.warning(self, "Anki Error", "Could not store the image in Anki’s media collection.")
+            return
+
+        full_path = os.path.join(self.anki_media_path, image_filename)
+        if os.path.exists(full_path):
+            pixmap = QPixmap(full_path)
+            if not pixmap.isNull():
+                self.word_viewer_image_label.setPixmap(pixmap.scaledToWidth(300, Qt.SmoothTransformation))
+        QMessageBox.information(self, "Image Generated", f"Created AI image for word: {word_text}\nSaved as: {image_filename}")
