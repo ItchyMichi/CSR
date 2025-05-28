@@ -1261,6 +1261,8 @@ class SubtitleWindow(QDialog):
         # -- Subtitles Page --
         #
         self.list_widget.setFont(new_font)
+        if hasattr(self, "word_viewer_list_widget"):
+            self.word_viewer_list_widget.setFont(new_font)
         self.words_container.setFont(new_font)
         self.episode_tree.setFont(new_font)
 
@@ -1314,11 +1316,15 @@ class SubtitleWindow(QDialog):
         self._original_subtitle_lines = list(subtitle_lines)  # keep a copy for reference
 
         self.list_widget.clear()
+        if hasattr(self, "word_viewer_list_widget"):
+            self.word_viewer_list_widget.clear()
         for (start, end, text) in subtitle_lines:
             start_str = self.seconds_to_hhmmss(start)
             end_str = self.seconds_to_hhmmss(end)
             display_str = f"{start_str} - {end_str}  {text}"
             self.list_widget.addItem(display_str)
+            if hasattr(self, "word_viewer_list_widget"):
+                self.word_viewer_list_widget.addItem(display_str)
 
         self.update_fonts()
         # Also refresh editor page if we want
@@ -1331,6 +1337,14 @@ class SubtitleWindow(QDialog):
         start_time, end_time, text = self._subtitle_lines[row]
         self.subtitleDoubleClicked.emit(start_time)
         self.display_words_for_subtitle(row)
+
+    def on_word_viewer_item_double_clicked(self, item: QListWidgetItem):
+        row = self.word_viewer_list_widget.row(item)
+        if row < 0 or row >= len(self._subtitle_lines):
+            return
+        start_time, end_time, text = self._subtitle_lines[row]
+        self.subtitleDoubleClicked.emit(start_time)
+        self.populate_word_viewer(text)
 
 
     def clear_selected_words(self):
@@ -1511,9 +1525,21 @@ class SubtitleWindow(QDialog):
                 item = self.list_widget.item(active_index)
                 if item:
                     self.list_widget.scrollToItem(item)
-                self.display_words_for_subtitle(active_index)
+                if hasattr(self, "word_viewer_list_widget"):
+                    self.word_viewer_list_widget.setCurrentRow(active_index)
+                    w_item = self.word_viewer_list_widget.item(active_index)
+                    if w_item:
+                        self.word_viewer_list_widget.scrollToItem(w_item)
+
+                if self.stacked_widget.currentWidget() == self.page_word_viewer:
+                    _s, _e, txt = self._subtitle_lines[active_index]
+                    self.populate_word_viewer(txt)
+                else:
+                    self.display_words_for_subtitle(active_index)
         else:
             self.clear_grid_layout()
+            if self.stacked_widget.currentWidget() == self.page_word_viewer:
+                self.populate_word_viewer("")
             self._last_active_index = -1
 
     ########################################################################
@@ -1846,6 +1872,19 @@ class SubtitleWindow(QDialog):
     def build_word_viewer_page(self, parent_widget: QWidget):
         layout = QVBoxLayout(parent_widget)
 
+        label_sub = QLabel("Subtitles")
+        layout.addWidget(label_sub)
+
+        self.word_viewer_list_widget = QListWidget()
+        self.word_viewer_list_widget.itemDoubleClicked.connect(
+            self.on_word_viewer_item_double_clicked
+        )
+        self.word_viewer_list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.word_viewer_list_widget.customContextMenuRequested.connect(
+            self.on_subtitle_right_click
+        )
+        layout.addWidget(self.word_viewer_list_widget)
+
         self.word_viewer_subtitle_label = QLabel("")
         self.word_viewer_subtitle_label.setWordWrap(True)
         layout.addWidget(self.word_viewer_subtitle_label)
@@ -1952,6 +1991,11 @@ class SubtitleWindow(QDialog):
         else:
             _start, _end, text = self._subtitle_lines[current_row]
             self.populate_word_viewer(text)
+        if hasattr(self, "word_viewer_list_widget"):
+            self.word_viewer_list_widget.setCurrentRow(current_row)
+            item = self.word_viewer_list_widget.item(current_row)
+            if item:
+                self.word_viewer_list_widget.scrollToItem(item)
 
         # Show the Word Viewer page
         self.stacked_widget.setCurrentWidget(self.page_word_viewer)
