@@ -266,6 +266,10 @@ class SubtitleWindow(QDialog):
         self.action_subtitle_editor = QAction("Subtitle Editor", self)
         self.action_subtitle_editor.triggered.connect(self.open_subtitle_editor)
 
+        # Action to open the Word Viewer page
+        self.action_word_viewer = QAction("Word Viewer", self)
+        self.action_word_viewer.triggered.connect(self.open_word_viewer)
+
         self.editor_button_group = None  # We'll create it in refresh_subtitle_editor
 
         # Add them to toolbar
@@ -274,6 +278,7 @@ class SubtitleWindow(QDialog):
         self.toolbar.addAction(self.action_create_anki)
         self.toolbar.addAction(self.action_create_migaku)
         self.toolbar.addAction(self.action_subtitle_editor)
+        self.toolbar.addAction(self.action_word_viewer)
 
         # 4) Create the stacked widget
         self.stacked_widget = QStackedWidget()
@@ -1836,6 +1841,7 @@ class SubtitleWindow(QDialog):
 
         parent_widget.setLayout(layout)
 
+
     # ------------------------------------------------------------------
     # Build the Word Viewer Page (page 4 in stacked_widget)
     # ------------------------------------------------------------------
@@ -1862,6 +1868,7 @@ class SubtitleWindow(QDialog):
         self.btn_generate_word_image.setEnabled(False)
         self.btn_generate_word_image.clicked.connect(self.on_generate_word_image_clicked)
         layout.addWidget(self.btn_generate_word_image)
+
 
         parent_widget.setLayout(layout)
 
@@ -1920,6 +1927,17 @@ class SubtitleWindow(QDialog):
 
         # 3) Switch to the Anki Editor page
         self.stacked_widget.setCurrentWidget(self.page_anki_editor)
+
+    # ------------------------------------------------------------------
+    # Word Viewer page handlers
+    # ------------------------------------------------------------------
+    def open_word_viewer(self):
+        """Switch to the Word Viewer page."""
+        self.stacked_widget.setCurrentWidget(self.page_word_viewer)
+
+    def on_back_from_word_viewer(self):
+        """Return to the Subtitles page from the Word Viewer."""
+        self.stacked_widget.setCurrentWidget(self.page_subtitles)
 
     # ---------------------------------------------------------------------
     #  Called when user clicks "Create Anki Card" in the toolbar
@@ -2958,6 +2976,7 @@ class SubtitleWindow(QDialog):
                                 f"Created AI image for subtitle:\n{text}\n"
                                 f"File saved as: {image_filename}")
 
+
     # ------------------------------------------------------------------
     # Word Viewer helpers
     # ------------------------------------------------------------------
@@ -3054,3 +3073,4 @@ class SubtitleWindow(QDialog):
             if not pixmap.isNull():
                 self.word_viewer_image_label.setPixmap(pixmap.scaledToWidth(300, Qt.SmoothTransformation))
         QMessageBox.information(self, "Image Generated", f"Created AI image for word: {word_text}\nSaved as: {image_filename}")
+
