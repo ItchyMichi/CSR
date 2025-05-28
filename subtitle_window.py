@@ -1903,10 +1903,45 @@ class SubtitleWindow(QDialog):
     # ------------------------------------------------------------------
     def open_word_viewer(self):
         """Switch to the Word Viewer page."""
+        # Store the current toolbar actions so we can restore them later
+        self._old_actions = self.toolbar.actions()
+        for act in self._old_actions:
+            self.toolbar.removeAction(act)
+
+        # Create a single Back action for the Word Viewer
+        self.action_back_from_word_viewer = QAction("Back to Subtitles", self)
+        self.action_back_from_word_viewer.triggered.connect(
+            self.on_back_from_word_viewer
+        )
+        self.toolbar.addAction(self.action_back_from_word_viewer)
+        self._word_viewer_actions = [self.action_back_from_word_viewer]
+
+        # Load the text from the currently selected subtitle line
+        current_row = self.list_widget.currentRow()
+        if current_row < 0 or current_row >= len(self._subtitle_lines):
+            logger.info("No subtitle selected -> Word Viewer will be empty.")
+            self.word_viewer_text.setPlainText("")
+        else:
+            _start, _end, text = self._subtitle_lines[current_row]
+            self.word_viewer_text.setPlainText(text)
+
+        # Switch to the Word Viewer page
         self.stacked_widget.setCurrentWidget(self.page_word_viewer)
 
     def on_back_from_word_viewer(self):
         """Return to the Subtitles page from the Word Viewer."""
+        # Remove Word Viewer toolbar actions
+        for act in getattr(self, "_word_viewer_actions", []):
+            self.toolbar.removeAction(act)
+        if hasattr(self, "_word_viewer_actions"):
+            self._word_viewer_actions.clear()
+
+        # Restore the original toolbar actions
+        for act in getattr(self, "_old_actions", []):
+            self.toolbar.addAction(act)
+
+        # Clear Word Viewer text and return to main page
+        self.word_viewer_text.clear()
         self.stacked_widget.setCurrentWidget(self.page_subtitles)
 
     # ---------------------------------------------------------------------
