@@ -1891,6 +1891,9 @@ class SubtitleWindow(QDialog):
 
         # Tab widget to show generated images for selected words
         self.image_tab_widget = QTabWidget()
+        self.image_tab_widget.setTabsClosable(True)
+        self.image_tab_widget.setMovable(True)
+        self.image_tab_widget.tabCloseRequested.connect(self.close_image_tab)
         layout.addWidget(self.image_tab_widget)
 
         self.word_viewer_list_widget = QListWidget()
@@ -3343,6 +3346,13 @@ class SubtitleWindow(QDialog):
         from PyQt5.QtWidgets import QMessageBox
         QMessageBox.warning(self, "Image Generation Failed", message)
         self.word_image_worker = None
+
+    def close_image_tab(self, index: int):
+        """Close and delete the image tab at ``index``."""
+        w = self.image_tab_widget.widget(index)
+        if w:
+            w.deleteLater()
+        self.image_tab_widget.removeTab(index)
 
     def on_word_viewer_create_card(self):
         """Create an Anki card from the words selected in the Word Viewer."""
