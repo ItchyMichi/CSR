@@ -1,6 +1,11 @@
+import base64
 import logging
 import os
+import uuid
 from typing import Optional
+
+import openai
+from google.auth.transport import requests
 
 from content_parser import ContentParser
 from PyQt5.QtGui import QPalette, QColor
@@ -62,7 +67,7 @@ class WordImageWorker(QThread):
             response = openai.Image.create(
                 prompt=self.prompt,
                 n=1,
-                size="512x512",
+                size="1024x1024",
                 model="dall-e-3",
             )
             image_url = response["data"][0]["url"]
@@ -3058,6 +3063,7 @@ class SubtitleWindow(QDialog):
         )
 
         try:
+            prompt = f"Create a clear, literal illustration that shows the meaning of the subtitle: '{text}'."
             response = openai.Image.create(
                 prompt=prompt,
                 n=1,
