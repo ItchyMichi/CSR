@@ -2000,7 +2000,18 @@ class SubtitleWindow(QDialog):
             self.on_back_from_word_viewer
         )
         self.toolbar.addAction(self.action_back_from_word_viewer)
-        self._word_viewer_actions = [self.action_back_from_word_viewer]
+
+        # Toolbar action to open the Anki Card creation view
+        self.action_word_viewer_create_card = QAction("Create Card", self)
+        self.action_word_viewer_create_card.triggered.connect(
+            self.on_create_anki_from_word_viewer
+        )
+        self.toolbar.addAction(self.action_word_viewer_create_card)
+
+        self._word_viewer_actions = [
+            self.action_back_from_word_viewer,
+            self.action_word_viewer_create_card,
+        ]
 
         # Populate content based on the currently selected subtitle
         current_row = self.list_widget.currentRow()
@@ -2034,6 +2045,62 @@ class SubtitleWindow(QDialog):
         # Clear Word Viewer state and return to the subtitles page
         self.populate_word_viewer("")
         self.stacked_widget.setCurrentWidget(self.page_subtitles)
+
+    def on_create_anki_from_word_viewer(self):
+        """Switch from the Word Viewer to the Anki Card creation page."""
+        try:
+            self.sync_anki()
+        except Exception as e:
+            logger.exception("Error syncing with Anki: %s", e)
+            QMessageBox.warning(
+                self,
+                "Anki Sync Error",
+                f"Could not sync with Anki:\n{e}"
+            )
+            self.deck_combo.clear()
+            self.deck_combo.addItem("Words")
+            self.deck_combo.addItem("Study")
+
+        # Remove Word Viewer actions from the toolbar but keep the
+        # original subtitle actions stored in _old_actions for later
+        self._word_viewer_actions_active = self.toolbar.actions()
+        for act in self._word_viewer_actions_active:
+            self.toolbar.removeAction(act)
+
+        # Create Anki editor toolbar actions
+        self.action_back_to_subs = QAction("Back to Subtitles", self)
+        self.action_back_to_subs.triggered.connect(self.on_back_to_subtitles_clicked)
+        self.toolbar.addAction(self.action_back_to_subs)
+
+        self.action_add_card = QAction("Add Card", self)
+        self.action_add_card.triggered.connect(self.on_add_card_triggered)
+        self.toolbar.addAction(self.action_add_card)
+
+        self.action_add_and_study = QAction("Add and Study", self)
+        self.action_add_and_study.triggered.connect(self.on_add_and_study_triggered)
+        self.toolbar.addAction(self.action_add_and_study)
+
+        self._anki_actions = [
+            self.action_back_to_subs,
+            self.action_add_card,
+            self.action_add_and_study,
+        ]
+
+        # Switch to the Anki Editor page
+        self.stacked_widget.setCurrentIndex(1)
+        self.anki_selected_dict_form_ids.clear()
+
+        # Fill fields based on the currently selected subtitle line
+        current_row = self.list_widget.currentRow()
+        if current_row < 0 or current_row >= len(self._subtitle_lines):
+            logger.info("No subtitle line selected -> Using empty editor.")
+            self.field_native_sentence.setPlainText("")
+            self.clear_anki_grid_layout()
+            return
+
+        _start, _end, text = self._subtitle_lines[current_row]
+        self.field_native_sentence.setPlainText(text)
+        self.display_words_for_anki_editor(text)
 
     # ---------------------------------------------------------------------
     #  Called when user clicks "Create Anki Card" in the toolbar
