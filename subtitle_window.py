@@ -2045,8 +2045,7 @@ class SubtitleWindow(QDialog):
         for act in getattr(self, "_old_actions", []):
             self.toolbar.addAction(act)
 
-        # Clear Word Viewer state and return to the subtitles page
-        self.populate_word_viewer("")
+        # Return to the subtitles page without clearing image tabs
         self.stacked_widget.setCurrentWidget(self.page_subtitles)
 
     def on_create_anki_from_word_viewer(self):
@@ -3224,7 +3223,7 @@ class SubtitleWindow(QDialog):
         self.selected_word_text = ""
         self.selected_word_label = None
         self.btn_generate_word_image.setEnabled(False)
-        self.image_tab_widget.clear()
+        # Do not clear image_tab_widget here so generated images persist
         self.word_viewer_selected_dict_form_ids.clear()
         self.word_viewer_selected_dict_form_surfaces.clear()
         self.word_viewer_dict_form_surfaces.clear()
