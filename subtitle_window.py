@@ -3378,9 +3378,14 @@ class SubtitleWindow(QDialog):
         pos_value = ", ".join(pos_list)
 
         image_tags = []
-        for word in selected_surfaces:
-            for fname in self.word_image_files_map.get(word, []):
-                image_tags.append(f'<img src="{fname}">')
+        sentence_lower = native_sentence_str.lower()
+        for i in range(self.image_tab_widget.count()):
+            tab_word = self.image_tab_widget.tabText(i).strip()
+            if not tab_word:
+                continue
+            if tab_word.lower() in sentence_lower:
+                for fname in self.word_image_files_map.get(tab_word, []):
+                    image_tags.append(f'<img src="{fname}">')
         image_html = " ".join(image_tags).strip()
 
         card_data = {
