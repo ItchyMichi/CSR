@@ -270,6 +270,9 @@ class SubtitleWindow(QDialog):
 
         # Track word selections in the Word Viewer page
         self.word_viewer_selected_dict_form_ids = set()
+        self.word_viewer_selected_dict_form_surfaces = {}
+        self.word_viewer_dict_form_surfaces = {}
+        self.word_image_files_map = {}
 
 
         self.setWindowFlags(
@@ -1912,6 +1915,11 @@ class SubtitleWindow(QDialog):
         self.btn_generate_word_image.clicked.connect(self.on_generate_word_image_clicked)
         layout.addWidget(self.btn_generate_word_image)
 
+        # Button to create an Anki card from the selected words
+        self.btn_word_viewer_create_card = QPushButton("Create Card")
+        self.btn_word_viewer_create_card.clicked.connect(self.on_word_viewer_create_card)
+        layout.addWidget(self.btn_word_viewer_create_card)
+
 
         parent_widget.setLayout(layout)
 
@@ -3141,6 +3149,9 @@ class SubtitleWindow(QDialog):
         self.selected_word_label = None
         self.btn_generate_word_image.setEnabled(False)
         self.image_tab_widget.clear()
+        self.word_viewer_selected_dict_form_ids.clear()
+        self.word_viewer_selected_dict_form_surfaces.clear()
+        self.word_viewer_dict_form_surfaces.clear()
 
         if not self.db_manager:
             return
@@ -3151,6 +3162,7 @@ class SubtitleWindow(QDialog):
             return
 
         for (sf_id, surface, df_id, base_form, known) in forms:
+            self.word_viewer_dict_form_surfaces[df_id] = surface
             cont = QWidget()
             vbox = QVBoxLayout(cont)
 
@@ -3159,7 +3171,7 @@ class SubtitleWindow(QDialog):
             cb = QCheckBox()
 
             lbl_word.clicked.connect(lambda w=surface, d=df_id, l=lbl_word: self.on_word_label_clicked(w, d, l))
-            cb.stateChanged.connect(lambda state, d=df_id: self.on_word_viewer_checkbox_changed(d, state))
+            cb.stateChanged.connect(lambda state, d=df_id, s=surface: self.on_word_viewer_checkbox_changed(d, s, state))
 
             vbox.addWidget(lbl_word, alignment=Qt.AlignCenter)
             vbox.addWidget(base_lbl, alignment=Qt.AlignCenter)
@@ -3177,12 +3189,14 @@ class SubtitleWindow(QDialog):
         label.setStyleSheet("background-color: yellow;")
         self.btn_generate_word_image.setEnabled(True)
 
-    def on_word_viewer_checkbox_changed(self, dict_form_id: int, state: int):
+    def on_word_viewer_checkbox_changed(self, dict_form_id: int, surface_text: str, state: int):
         checked = (state == Qt.Checked)
         if checked:
             self.word_viewer_selected_dict_form_ids.add(dict_form_id)
+            self.word_viewer_selected_dict_form_surfaces[dict_form_id] = surface_text
         else:
             self.word_viewer_selected_dict_form_ids.discard(dict_form_id)
+            self.word_viewer_selected_dict_form_surfaces.pop(dict_form_id, None)
 
     def on_generate_word_image_clicked(self):
         if not self.selected_word_text:
@@ -3227,10 +3241,11 @@ class SubtitleWindow(QDialog):
             if res is None:
                 QMessageBox.warning(self, "Anki Error", "Could not store the image in Anki’s media collection.")
             else:
-                new_tag = f'<img src="{image_filename}">' 
+                new_tag = f'<img src="{image_filename}">'
                 existing = self.field_image.text().strip()
                 updated = (existing + " " + new_tag).strip()
                 self.field_image.setText(updated)
+                self.word_image_files_map.setdefault(word, []).append(image_filename)
 
             pix = QPixmap()
             pix.loadFromData(image_data)
@@ -3255,5 +3270,51 @@ class SubtitleWindow(QDialog):
         from PyQt5.QtWidgets import QMessageBox
         QMessageBox.warning(self, "Image Generation Failed", message)
         self.word_image_worker = None
+
+    def on_word_viewer_create_card(self):
+        """Create an Anki card from the words selected in the Word Viewer."""
+        from PyQt5.QtWidgets import QMessageBox
+
+        if not self.word_viewer_selected_dict_form_ids:
+            QMessageBox.warning(self, "No Words Selected", "Select words using the checkboxes first.")
+            return
+
+        native_sentence_str = self.word_viewer_subtitle_label.text().strip()
+
+        selected_surfaces = []
+        pos_list = []
+        for df_id in self.word_viewer_selected_dict_form_ids:
+            surf = self.word_viewer_selected_dict_form_surfaces.get(df_id, "")
+            if surf:
+                selected_surfaces.append(surf)
+            if self.db_manager:
+                info = self.db_manager.get_dict_form_info(df_id)
+                if info:
+                    pos_list.append(info.get("pos", ""))
+
+        native_word_str = ", ".join(selected_surfaces)
+        pos_value = ", ".join(pos_list)
+
+        image_tags = []
+        for word in selected_surfaces:
+            for fname in self.word_image_files_map.get(word, []):
+                image_tags.append(f'<img src="{fname}">')
+        image_html = " ".join(image_tags).strip()
+
+        card_data = {
+            "native word": {"value": native_word_str},
+            "native sentence": {"value": native_sentence_str},
+            "translated word": {"value": ""},
+            "translated sentence": {"value": ""},
+            "pos": {"value": pos_value},
+            "word audio": {"value": ""},
+            "sentence audio": {"value": ""},
+            "image": {"value": image_html},
+            "reading": {"value": ""},
+            "deck_name": "Words",
+        }
+
+        self.insert_single_card_into_db_and_anki(card_data, "Words")
+        QMessageBox.information(self, "Card Created", "Created a card from the Word Viewer selection.")
 
 
