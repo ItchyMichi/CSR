@@ -27,7 +27,12 @@ class ImageGenerationThread(QThread):
         openai.api_key = self.api_key
         prompt = generate_prompt_for_word(self.word)
         try:
-            response = openai.Image.create(prompt=prompt, n=1, size="512x512")
+            response = openai.Image.create(
+                prompt=prompt,
+                n=1,
+                size="512x512",
+                model="dall-e-3",
+            )
             image_url = response["data"][0]["url"]
             image_data = requests.get(image_url).content
         except Exception as e:
