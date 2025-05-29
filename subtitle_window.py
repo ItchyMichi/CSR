@@ -59,7 +59,12 @@ class WordImageWorker(QThread):
 
         try:
             openai.api_key = self.api_key
-            response = openai.Image.create(prompt=self.prompt, n=1, size="512x512")
+            response = openai.Image.create(
+                prompt=self.prompt,
+                n=1,
+                size="512x512",
+                model="dall-e-3",
+            )
             image_url = response["data"][0]["url"]
             image_data = requests.get(image_url).content
             self.finished.emit(image_data)
