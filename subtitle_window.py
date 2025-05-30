@@ -3228,6 +3228,20 @@ class SubtitleWindow(QDialog):
         import uuid
         from PyQt5.QtWidgets import QMessageBox
 
+        image_filename = f"word_image_{uuid.uuid4().hex}.png"
+        b64_data = base64.b64encode(image_data).decode("utf-8")
+        res = self.anki.invoke("storeMediaFile", filename=image_filename, data=b64_data)
+        if res is None:
+            QMessageBox.warning(self, "Anki Error", "Could not store the image in Anki’s media collection.")
+        else:
+            new_tag = f'<img src="{image_filename}">' 
+            existing = self.field_image.text().strip()
+            updated = (existing + " " + new_tag).strip()
+            self.field_image.setText(updated)
+            QMessageBox.information(self, "Word Image Generated", f"Generated image for '{self._pending_word_image_word}'.")
+
+        self.word_image_worker = None
+
 
     # ------------------------------------------------------------------
     # Word Viewer helpers

@@ -28,6 +28,9 @@ class ImageGenerationThread(QThread):
         prompt = generate_prompt_for_word(self.word)
         try:
             response = openai.Image.create(prompt=prompt, n=1, size="512x512")
+            # The API should return a dict containing data -> [{"url": ...}].
+            if not response.get("data") or "url" not in response["data"][0]:
+                raise ValueError(f"Unexpected response format: {response}")
             image_url = response["data"][0]["url"]
             image_data = requests.get(image_url).content
         except Exception as e:
