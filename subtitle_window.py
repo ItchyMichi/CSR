@@ -65,19 +65,22 @@ class WordImageWorker(QThread):
 
         try:
             openai.api_key = self.api_key
-            # call GPT-Image-1 and explicitly request URLs
+            # call GPT-Image-1 (default response_format is URL)
             response = openai.Image.create(
                 prompt=self.prompt,
                 n=1,
                 size="1024x1024",
                 model=self.model,
-                response_format="url",
             )
-            # verify we actually got back a URL
-            if not response.get("data") or "url" not in response["data"][0]:
-                raise ValueError(f"No image URL in response: {response}")
-            image_url = response["data"][0]["url"]
-            image_data = requests.get(image_url).content
+            # handle either URL or base64-encoded image
+            item = response.get("data", [{}])[0]
+            if "url" in item:
+                image_data = requests.get(item["url"]).content
+            elif "b64_json" in item:
+                import base64
+                image_data = base64.b64decode(item["b64_json"])
+            else:
+                raise ValueError(f"Unexpected image response format: {item}")
             self.finished.emit(image_data)
         except Exception as e:
             self.error.emit(str(e))
