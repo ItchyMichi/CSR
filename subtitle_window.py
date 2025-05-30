@@ -3363,8 +3363,17 @@ class SubtitleWindow(QDialog):
 
             pix = QPixmap()
             pix.loadFromData(image_data)
-            label.setPixmap(pix)
-            label.setScaledContents(True)
+            if not pix.isNull():
+                scaled = pix.scaled(
+                    max(1, pix.width() // 4),
+                    max(1, pix.height() // 4),
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+                label.setPixmap(scaled)
+                label.setFixedSize(scaled.size())
+            else:
+                label.setText("Invalid image data")
 
             if w in self.word_image_workers:
                 self.word_image_workers.remove(w)
