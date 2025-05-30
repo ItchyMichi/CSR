@@ -1616,21 +1616,20 @@ class DatabaseManager:
         Return a list of (surface_form_id, surface_form, dict_form_id, base_form, known)
         for any sentence whose 'content' matches 'text'.
         """
+        # (we'll still keep this, but see DISTINCT version below)
         cur = self._conn.cursor()
         query = """
-        SELECT sf.surface_form_id,
+        SELECT DISTINCT
+               sf.surface_form_id,
                sf.surface_form,
                df.dict_form_id,
                df.base_form,
                df.known
           FROM surface_forms sf
-          JOIN dictionary_forms df
-            ON sf.dict_form_id = df.dict_form_id
-          JOIN surface_form_sentences sfs
-            ON sf.surface_form_id = sfs.surface_form_id
-          JOIN sentences s
-            ON sfs.sentence_id = s.sentence_id
-         WHERE s.content = ?
+          JOIN dictionary_forms df        ON sf.dict_form_id = df.dict_form_id
+          JOIN surface_form_sentences sfs ON sf.surface_form_id = sfs.surface_form_id
+          JOIN sentences s ON sfs.sentence_id = s.sentence_id
+         WHERE s.content = ?;
         """
         cur.execute(query, (text,))
         return cur.fetchall()
@@ -1713,14 +1712,22 @@ class DatabaseManager:
         return os.path.basename(file_path)
 
     def get_surface_forms_for_sentence(self, sentence_id: int):
+        """Return words for exactly one subtitle sentence by its ID."""
         cur = self._conn.cursor()
-        cur.execute("""
-            SELECT sf.surface_form_id, sf.surface_form, df.dict_form_id, df.base_form, df.known
-            FROM surface_forms sf
-            JOIN dictionary_forms df ON sf.dict_form_id = df.dict_form_id
-            JOIN surface_form_sentences sfs ON sf.surface_form_id = sfs.surface_form_id
-            WHERE sfs.sentence_id = ?
-        """, (sentence_id,))
+        query = """
+        SELECT
+               sf.surface_form_id,
+               sf.surface_form,
+               df.dict_form_id,
+               df.base_form,
+               df.known
+          FROM surface_forms sf
+          JOIN dictionary_forms df        ON sf.dict_form_id = df.dict_form_id
+          JOIN surface_form_sentences sfs ON sf.surface_form_id = sfs.surface_form_id
+         WHERE sfs.sentence_id = ?
+        ;
+        """
+        cur.execute(query, (sentence_id,))
         return cur.fetchall()
 
     def get_card_by_sentence_id(self, sentence_id: int):
