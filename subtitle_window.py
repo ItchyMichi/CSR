@@ -3356,7 +3356,8 @@ class SubtitleWindow(QDialog):
         self.image_tab_widget.addTab(tab, word_text)
         self.image_tab_widget.setCurrentWidget(tab)
 
-        worker = WordImageWorker(self.openai_api_key, prompt, model="image-1")
+        # use the GPT-Image-1 model
+        worker = WordImageWorker(self.openai_api_key, prompt, model="gpt-image-1")
         self.word_image_workers.append(worker)
 
         def handle_finished(image_data, *, w=worker, label=lbl, word=word_text):
