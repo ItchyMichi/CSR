@@ -53,10 +53,11 @@ class WordImageWorker(QThread):
     finished = pyqtSignal(bytes)
     error = pyqtSignal(str)
 
-    def __init__(self, api_key: str, prompt: str, parent: Optional[QWidget] = None):
+    def __init__(self, api_key: str, prompt: str, model: str = "dall-e-3", parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.api_key = api_key
         self.prompt = prompt
+        self.model = model
 
     def run(self):
         import openai
@@ -68,7 +69,7 @@ class WordImageWorker(QThread):
                 prompt=self.prompt,
                 n=1,
                 size="1024x1024",
-                model="dall-e-3",
+                model=self.model,
             )
             image_url = response["data"][0]["url"]
             image_data = requests.get(image_url).content
@@ -3299,12 +3300,29 @@ class SubtitleWindow(QDialog):
             QMessageBox.warning(self, "Missing API Key", "No OpenAI_API_Key is set. Please configure it first.")
             return
 
+        sentence = self.word_viewer_subtitle_label.text().strip()
+        prompt_template = (
+            "Context:\n"
+            "Below is a sentence that uses the word \"[WORD]\":\n"
+            "\"[SENTENCE]\"\n\n"
+            "Character & Scene:\n"
+            "Akio – a young woman with ginger wavy hair, amber-hazel eyes, sun-kissed skin, and an athletic build – wearing a modern-meets-traditional Japanese outfit. She is energetic and expressive, captured mid-action as the central focus.\n\n"
+            "Task:\n"
+            "Illustrate the meaning of \"[WORD]\" through Akio’s actions, expression, and the scene around her, without any text or writing in the image. Use visual context and symbolism so that the viewer can infer the word’s sense from the image alone. If the concept of \"[WORD]\" is abstract or sensitive, portray it metaphorically in a positive, safe manner (no graphic or disallowed content).\n\n"
+            "Art Style & Lighting:\n\n"
+            "A blend of minimalist and detailed photorealistic elements with high-quality anime aesthetics\n\n"
+            "Soft two-tone anime-style shading and romantic natural lighting (warm sunset or gentle morning glow) to create an uplifting, joyful mood\n\n"
+            "2.5D perspective for depth and dimensionality\n\n"
+            "Consistency:\n"
+            "Ensure Akio remains consistent in appearance across images, and that the overall scene clearly symbolizes \"[WORD]\" at a glance."
+        )
+
         prompt = (
-            f"Create a clear, literal, and intuitive illustration that visually conveys the core meaning of the word or phrase '{word_text}'. "
-            f"Your illustration must depict a realistic scene or scenario where the meaning of '{word_text}' can be easily understood at a glance, without requiring textual explanation. "
-            f"Include visual cues such as relevant actions, emotions, context, and appropriate background elements. "
-            f"Clearly focus on expressing the central concept or idea behind '{word_text}'. "
-            f"Avoid ambiguity or overly abstract visuals; instead, prioritize clarity, realism, and immediate comprehension suitable for language learners."
+            prompt_template
+            .replace("[WORD]", word_text)
+            .replace("[word]", word_text)
+            .replace("[SENTENCE]", sentence)
+            .replace("[sentence]", sentence)
         )
 
         tab = QWidget()
@@ -3315,7 +3333,7 @@ class SubtitleWindow(QDialog):
         self.image_tab_widget.addTab(tab, word_text)
         self.image_tab_widget.setCurrentWidget(tab)
 
-        worker = WordImageWorker(self.openai_api_key, prompt)
+        worker = WordImageWorker(self.openai_api_key, prompt, model="image-1")
         self.word_image_workers.append(worker)
 
         def handle_finished(image_data, *, w=worker, label=lbl, word=word_text):
