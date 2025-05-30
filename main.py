@@ -442,6 +442,7 @@ class CentralHub(QMainWindow):
         super().__init__()
         self.db = db_manager
         self.subtitle_window = None  # if you want a shared instance
+        self._subtitle_lines = []  # (sentence_id, text) pairs for current video
         self.anki = anki_connector
         self.parser = ContentParser()
 
@@ -1353,6 +1354,8 @@ class CentralHub(QMainWindow):
             self.subtitle_window.openVideoAtTime.connect(self.on_openVideoAtTime)
             self.subtitle_window.editorBackToSubtitles.connect(self.update_subtitle_window)
             self.subtitle_window.pausePlayRequested.connect(self.on_pausePlayRequested)
+            # Track selection changes in the subtitle list
+            self.subtitle_window.list_widget.currentRowChanged.connect(self.on_subtitle_selected)
 
 
         # If it's already created but closed, we can re-show it:
@@ -1419,7 +1422,7 @@ class CentralHub(QMainWindow):
 
         # --- Query the DB for those lines (ordered by start_time)
         query = """
-        SELECT s.start_time, s.end_time, s.content
+        SELECT s.sentence_id, s.start_time, s.end_time, s.content
           FROM sentences s
           JOIN texts t ON s.text_id = t.text_id
           JOIN subtitles sub ON sub.subtitle_file = t.source
@@ -1434,12 +1437,22 @@ class CentralHub(QMainWindow):
 
         # Convert them to a list of (start, end, text)
         subtitle_lines = []
-        for (start, end, text) in rows:
+        self._subtitle_lines = []
+        for (sid, start, end, text) in rows:
             subtitle_lines.append((start or 0.0, end or 0.0, text or ""))
+            self._subtitle_lines.append((sid, text or ""))
 
         # Update the open SubtitleWindow
         logger.info("Updating subtitle window with new lines.")
         self.subtitle_window.set_subtitles(subtitle_lines)
+
+    def on_subtitle_selected(self, index: int):
+        if index < 0 or index >= len(self._subtitle_lines):
+            return
+        sentence_id, subtitle_text = self._subtitle_lines[index]
+        # now pass the ID instead of the raw text
+        if self.subtitle_window:
+            self.subtitle_window.display_words_for_anki_editor(sentence_id)
 
     ##########################################################################
     # Page 2: Anki Manager

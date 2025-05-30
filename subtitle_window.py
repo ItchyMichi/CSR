@@ -2102,7 +2102,13 @@ class SubtitleWindow(QDialog):
 
         _start, _end, text = self._subtitle_lines[current_row]
         self.field_native_sentence.setPlainText(text)
-        self.display_words_for_anki_editor(text)
+        sentence_id = None
+        parent = self.parent()
+        if parent and hasattr(parent, "_subtitle_lines"):
+            if 0 <= current_row < len(parent._subtitle_lines):
+                sentence_id, _ = parent._subtitle_lines[current_row]
+        if sentence_id is not None:
+            self.display_words_for_anki_editor(sentence_id)
 
     # ---------------------------------------------------------------------
     #  Called when user clicks "Create Anki Card" in the toolbar
@@ -2157,7 +2163,13 @@ class SubtitleWindow(QDialog):
 
         start_time, end_time, text = self._subtitle_lines[current_row]
         self.field_native_sentence.setPlainText(text)
-        self.display_words_for_anki_editor(text)
+        sentence_id = None
+        parent = self.parent()
+        if parent and hasattr(parent, "_subtitle_lines"):
+            if 0 <= current_row < len(parent._subtitle_lines):
+                sentence_id, _ = parent._subtitle_lines[current_row]
+        if sentence_id is not None:
+            self.display_words_for_anki_editor(sentence_id)
 
     def on_back_to_subtitles_clicked(self):
         print("DEBUG: Entering on_back_to_subtitles_clicked...")
@@ -2406,12 +2418,12 @@ class SubtitleWindow(QDialog):
         cur.execute(update_query, (sentence_id,))
         self.db_manager._conn.commit()
 
-    def display_words_for_anki_editor(self, subtitle_text: str):
+    def display_words_for_anki_editor(self, sentence_id: int):
         self.clear_anki_grid_layout()
         if not self.db_manager:
             return
 
-        forms = self.db_manager.get_surface_forms_for_text_content(subtitle_text)
+        forms = self.db_manager.get_surface_forms_for_sentence(sentence_id)
         if not forms:
             no_label = QLabel("No words found for this line.")
             self.anki_grid_layout.addWidget(no_label, 0, 0, 1, 1)
