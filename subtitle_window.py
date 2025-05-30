@@ -3202,7 +3202,8 @@ class SubtitleWindow(QDialog):
 
 
     def generate_word_image_async(self):
-        """Generate an image for the word in ``field_native_word`` using OpenAI."""
+        """Generate an image for the word in ``field_native_word`` using the
+        same prompt and model as the Word Viewer."""
         from PyQt5.QtWidgets import QMessageBox
 
         word_text = self.field_native_word.text().strip()
@@ -3211,8 +3212,11 @@ class SubtitleWindow(QDialog):
             return
 
         if not self.openai_api_key:
-            QMessageBox.warning(self, "Missing API Key",
-                                "No OpenAI_API_Key is set. Please configure it first.")
+            QMessageBox.warning(
+                self,
+                "Missing API Key",
+                "No OpenAI_API_Key is set. Please configure it first."
+            )
             return
 
         base_word = word_text
@@ -3222,10 +3226,37 @@ class SubtitleWindow(QDialog):
             if info and info.get("base_form"):
                 base_word = info["base_form"]
 
-        prompt = f"Create a clear, literal illustration that shows the meaning of the word '{base_word}'."
+        sentence = self.field_native_sentence.toPlainText().strip()
+        prompt_template = (
+            "Context:\n"
+            "Below is a sentence that uses the word \"[WORD]\":\n"
+            "\"[SENTENCE]\"\n\n"
+            "Character & Scene:\n"
+            "Akio – a young woman with ginger wavy hair, amber-hazel eyes, sun-kissed skin, and an athletic build – wearing a modern-meets-traditional Japanese outfit. She is energetic and expressive, captured mid-action as the central focus.\n\n"
+            "Task:\n"
+            "Illustrate the meaning of \"[WORD]\" through Akio’s actions, expression, and the scene around her, without any text or writing in the image. Use visual context and symbolism so that the viewer can infer the word’s sense from the image alone. If the concept of \"[WORD]\" is abstract or sensitive, portray it metaphorically in a positive, safe manner (no graphic or disallowed content).\n\n"
+            "Art Style & Lighting:\n\n"
+            "A blend of minimalist and detailed photorealistic elements with high-quality anime aesthetics\n\n"
+            "Soft two-tone anime-style shading and romantic natural lighting (warm sunset or gentle morning glow) to create an uplifting, joyful mood\n\n"
+            "2.5D perspective for depth and dimensionality\n\n"
+            "Consistency:\n"
+            "Ensure Akio remains consistent in appearance across images, and that the overall scene clearly symbolizes \"[WORD]\" at a glance."
+        )
+
+        prompt = (
+            prompt_template
+            .replace("[WORD]", base_word)
+            .replace("[word]", base_word)
+            .replace("[SENTENCE]", sentence)
+            .replace("[sentence]", sentence)
+        )
 
         self._pending_word_image_word = base_word
-        self.word_image_worker = WordImageWorker(self.openai_api_key, prompt)
+        self.word_image_worker = WordImageWorker(
+            self.openai_api_key,
+            prompt,
+            model="gpt-image-1",
+        )
         self.word_image_worker.finished.connect(self.on_word_image_generated)
         self.word_image_worker.error.connect(self.on_word_image_error)
         self.word_image_worker.start()
