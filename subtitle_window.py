@@ -420,12 +420,23 @@ class SubtitleWindow(QDialog):
 
     def on_subtitle_right_click(self, pos):
         """
-        Called when the user right-clicks somewhere in the list_widget.
-        We figure out which subtitle was clicked, then show a context menu
-        with an option to Pause/Play the active video.
+        Called when the user right-clicks on a subtitle item in either the main
+        subtitle list or the Word Viewer list. We figure out which subtitle was
+        clicked, then show a context menu with an option to Pause/Play the active
+        video.
         """
-        # 1) Convert the click position (pos) to a model index:
-        item_index = self.list_widget.indexAt(pos)
+
+        # Determine which widget emitted the signal so that the position is
+        # interpreted correctly for both the subtitle list and the word viewer
+        sender_widget = self.sender()
+        if sender_widget == self.word_viewer_list_widget:
+            widget = self.word_viewer_list_widget
+        else:
+            widget = self.list_widget
+
+        # Convert the click position (pos) to a model index relative to the
+        # widget that was clicked.
+        item_index = widget.indexAt(pos)
         if not item_index.isValid():
             return  # user right-clicked on empty area
 
@@ -433,17 +444,15 @@ class SubtitleWindow(QDialog):
         if row < 0 or row >= len(self._subtitle_lines):
             return
 
-        # (Optionally) store the clicked row if you need it:
-        # self._right_clicked_row = row
-
-        # 2) Build the menu
+        # Build the context menu
         menu = QMenu(self)
         action_pause_play = QAction("Pause/Play Video", self)
         action_pause_play.triggered.connect(self.emit_pause_play_signal)
         menu.addAction(action_pause_play)
 
-        # 3) Show the menu at the cursor position (translated to global coords)
-        menu.exec_(self.list_widget.mapToGlobal(pos))
+        # Show the menu at the cursor position translated to global coords for
+        # the correct widget.
+        menu.exec_(widget.mapToGlobal(pos))
 
     def emit_pause_play_signal(self):
         self.pausePlayRequested.emit()
