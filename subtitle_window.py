@@ -65,12 +65,17 @@ class WordImageWorker(QThread):
 
         try:
             openai.api_key = self.api_key
+            # call GPT-Image-1 and explicitly request URLs
             response = openai.Image.create(
                 prompt=self.prompt,
                 n=1,
                 size="1024x1024",
                 model=self.model,
+                response_format="url",
             )
+            # verify we actually got back a URL
+            if not response.get("data") or "url" not in response["data"][0]:
+                raise ValueError(f"No image URL in response: {response}")
             image_url = response["data"][0]["url"]
             image_data = requests.get(image_url).content
             self.finished.emit(image_data)
