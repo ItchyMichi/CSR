@@ -1119,19 +1119,11 @@ class CentralHub(QMainWindow):
                 self.detail_image_label.setText("No image")
                 return
 
-            # 2) show the file_path
-            lines = []
-            lines.append(f"File Path: {info['file_path']}")
-            lines.append(f"Type: {info['type'] or ''}")
-
-            # 3) show the description if present
+            # Only show the description in the info panel
             if info["description"]:
-                lines.append(f"Description:\n{info['description']}")
+                self.detail_text.setText(info["description"])
             else:
-                lines.append("No description yet.")
-
-            # 4) put all that text in the detail_text box
-            self.detail_text.setText("\n".join(lines))
+                self.detail_text.setText("No description yet.")
 
             # 5) set the image if a thumbnail path is available
             thumb_path = info["thumbnail_path"]
