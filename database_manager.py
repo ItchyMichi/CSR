@@ -2084,6 +2084,15 @@ class DatabaseManager:
             )
         self._conn.commit()
 
+    def count_deferred_kanji(self) -> int:
+        """Return the number of surface forms waiting for kanji parsing."""
+        cur = self._conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM surface_forms WHERE kanji_parsed = 0"
+        )
+        row = cur.fetchone()
+        return row[0] if row else 0
+
     def increment_surface_form_frequency(self, surface_form_id: int):
         cur = self._conn.cursor()
         cur.execute("UPDATE surface_forms SET frequency = frequency + 1 WHERE surface_form_id = ?", (surface_form_id,))
