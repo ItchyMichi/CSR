@@ -164,11 +164,19 @@ class DatabaseManager:
             frequency       INTEGER DEFAULT 0,
             known           BOOLEAN DEFAULT 0,
             ranking         INTEGER,
+            kanji_parsed    BOOLEAN DEFAULT 0,
             FOREIGN KEY(dict_form_id)
                 REFERENCES dictionary_forms(dict_form_id)
                 ON DELETE CASCADE
         );
         """)
+
+        # If upgrading an old DB, ensure the kanji_parsed column exists
+        cur.execute("PRAGMA table_info(surface_forms)")
+        cols = [row[1] for row in cur.fetchall()]
+        if 'kanji_parsed' not in cols:
+            cur.execute("ALTER TABLE surface_forms ADD COLUMN kanji_parsed BOOLEAN DEFAULT 0")
+            self._conn.commit()
 
         # Linking table for surface_forms→sentences
         cur.execute("""
@@ -1953,8 +1961,8 @@ class DatabaseManager:
         cur.execute("UPDATE dictionary_forms SET known = ? WHERE dict_form_id = ?", (1 if known else 0, dict_form_id))
         self._conn.commit()
 
-    def add_surface_form(self, dict_form_id: int, surface_form: str, reading: str, pos: Optional[str], sentence_id: int,
-                         card_id: int) -> int:
+    def add_surface_form(self, dict_form_id: int, surface_form: str, reading: str, pos: Optional[str],
+                         sentence_id: int, card_id: int, parse_kanji: bool = True) -> int:
         surface_form = remove_surrogates(surface_form or "")
         reading = remove_surrogates(reading or "")
         pos = remove_surrogates(pos or "")
@@ -1987,9 +1995,11 @@ class DatabaseManager:
             logging.info(f"Linking surface form to sentence: {surface_form_id}, {sentence_id}")
             self._conn.commit()
 
-        if self.contains_kanji(surface_form):
+        if parse_kanji and self.contains_kanji(surface_form):
             logging.info(f"Handling compound and kanji for: {surface_form}")
             self._handle_compound_and_kanji(surface_form_id, surface_form, sentence_id, card_id)
+            cur.execute("UPDATE surface_forms SET kanji_parsed = 1 WHERE surface_form_id = ?", (surface_form_id,))
+            self._conn.commit()
 
         return surface_form_id
 
@@ -2044,6 +2054,35 @@ class DatabaseManager:
                 VALUES (?, ?, ?, ?)
             """, (kanji_id, surface_form_id, sentence_id, card_id))
             self._conn.commit()
+
+    def parse_pending_kanji(self):
+        """Process surface forms that haven't had their kanji parsed yet."""
+        cur = self._conn.cursor()
+        cur.execute(
+            "SELECT surface_form_id, surface_form FROM surface_forms WHERE kanji_parsed = 0"
+        )
+        rows = cur.fetchall()
+        for sf_id, text in rows:
+            if not self.contains_kanji(text):
+                cur.execute(
+                    "UPDATE surface_forms SET kanji_parsed = 1 WHERE surface_form_id = ?",
+                    (sf_id,),
+                )
+                continue
+
+            cur.execute(
+                "SELECT sentence_id FROM surface_form_sentences WHERE surface_form_id = ?",
+                (sf_id,),
+            )
+            sentence_rows = cur.fetchall() or [(0,)]
+            for (sent_id,) in sentence_rows:
+                self._handle_compound_and_kanji(sf_id, text, sent_id, None)
+
+            cur.execute(
+                "UPDATE surface_forms SET kanji_parsed = 1 WHERE surface_form_id = ?",
+                (sf_id,),
+            )
+        self._conn.commit()
 
     def increment_surface_form_frequency(self, surface_form_id: int):
         cur = self._conn.cursor()

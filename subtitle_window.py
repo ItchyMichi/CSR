@@ -866,7 +866,8 @@ class SubtitleWindow(QDialog):
                             reading=tk["reading"],
                             pos=tk["pos"],
                             sentence_id=sentence_id,
-                            card_id=None
+                            card_id=None,
+                            parse_kanji=False
                         )
                         # add_surface_form increments frequency by +1
 

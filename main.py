@@ -558,6 +558,10 @@ class CentralHub(QMainWindow):
         self.action_update_coverage.triggered.connect(self.update_coverage)
         self.anki_manager_toolbar.addAction(self.action_update_coverage)
 
+        self.action_parse_kanji = QAction("Parse Kanji", self)
+        self.action_parse_kanji.triggered.connect(self.parse_pending_kanji)
+        self.anki_manager_toolbar.addAction(self.action_parse_kanji)
+
         # Initially show the Media Browser Toolbar, hide the Anki Manager Toolbar
         self.media_browser_toolbar.setVisible(True)
         self.anki_manager_toolbar.setVisible(False)
@@ -963,7 +967,8 @@ class CentralHub(QMainWindow):
                     reading=tk["reading"],
                     pos=tk["pos"],
                     sentence_id=sentence_id,
-                    card_id=None
+                    card_id=None,
+                    parse_kanji=False
                 )
             self.update_unknown_count_for_sentence(sentence_id)
 
@@ -2703,6 +2708,11 @@ class CentralHub(QMainWindow):
 
     def update_coverage(self):
         self.statusBar().showMessage("Updating coverage... (placeholder)")
+
+    def parse_pending_kanji(self):
+        self.statusBar().showMessage("Parsing kanji...")
+        self.db.parse_pending_kanji()
+        self.statusBar().showMessage("Kanji parsing complete.")
 
     ##########################################################################
     # Study Page
