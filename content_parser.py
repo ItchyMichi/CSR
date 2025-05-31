@@ -44,7 +44,7 @@ class ContentParser:
             reading_hiragana = self.katakana_to_hiragana(reading_katakana)
 
             # Basic filtering similar to original MeCab logic
-            if pos != "記号" and pos != "補助記号" and base_form != "" and surface_form.strip() and pos != "助詞":
+            if pos != "記号" and pos != "補助記号" and base_form != "" and surface_form.strip():
 
                 morph = {
                     "base_form": base_form,
