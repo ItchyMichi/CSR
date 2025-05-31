@@ -2458,7 +2458,8 @@ class SubtitleWindow(QDialog):
             self.anki_grid_layout.addWidget(word_label, 0, col_index)
             word_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
             self.grid_layout.setRowStretch(0, 1)
-            logger.info("word_label font:", word_label.font().pointSize())
+            logger.info("word_label font: %d", word_label.font().pointSize())
+
 
             reading_label = QLabel(f"({base_form})")
             reading_label.setAlignment(Qt.AlignCenter)
