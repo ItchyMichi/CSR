@@ -41,6 +41,7 @@ class DeckEditorWindow(QWidget):
         self.anki_media_path = self.config.get("PATHS", "anki_media_path", fallback="")
         self.google_credentials = self.config['PATHS'].get('google_credentials_json', '')
         self.openai_api_key = self.config['DEFAULT'].get('OpenAI_API_Key', '')
+        self.tmdb_api_key = self.config['DEFAULT'].get('TMDB_API_Key', '')
 
         # QMediaPlayer for audio playback
         self.audio_player = QMediaPlayer()

@@ -134,6 +134,13 @@ def ensure_config():
     if not os.path.exists(CONFIG_PATH):
         print(f"No config.ini found. Creating a minimal one at {CONFIG_PATH}")
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            # Provide a DEFAULT section with placeholder API keys so users
+            # know what can be configured.
+            f.write("[DEFAULT]\n")
+            f.write("OpenAI_API_Key =\n")
+            f.write("TMDB_API_Key =\n\n")
+
+            # Section used by the deck field mapping dialog
             f.write("[FIELD_MAPPINGS]\n")
     # Otherwise, it already exists
 
@@ -459,6 +466,7 @@ class CentralHub(QMainWindow):
         self.anki_media_path = self.config.get("PATHS", "anki_media_path", fallback="")
         self.google_credentials = self.config.get("PATHS", "google_credentials_json", fallback="")
         self.openai_api_key = self.config.get("DEFAULT", "OpenAI_API_Key", fallback="")
+        self.tmdb_api_key = self.config.get("DEFAULT", "TMDB_API_Key", fallback="")
 
         # Create a QMediaPlayer for playing audio in the Deck Editor
         self.audio_player = QMediaPlayer()
@@ -1355,6 +1363,7 @@ class CentralHub(QMainWindow):
                 anki_media_path=self.anki_media_path,
                 audio_player=self.audio_player,
                 openai_api_key=self.openai_api_key,  # pass the key along
+                tmdb_api_key=self.tmdb_api_key,
             )
             # Connect the signal here
             self.subtitle_window.subtitleDoubleClicked.connect(self.jump_to_time)
