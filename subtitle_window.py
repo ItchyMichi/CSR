@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QCheckBox, QWidget, QSizePolicy, QToolBar, QAction, QMessageBox,
     QStackedWidget, QLineEdit, QPushButton, QFormLayout, QGroupBox,
     QHBoxLayout, QPlainTextEdit, QSpacerItem, QComboBox, QToolButton, QWidgetAction, QButtonGroup, QRadioButton,
-    QInputDialog, QMenu, QTabWidget
+    QInputDialog, QMenu, QTabWidget, QFrame
 
 )
 
@@ -1585,9 +1585,39 @@ class SubtitleWindow(QDialog):
     # Methods for the "Create Anki Card" page + translation fields
     ########################################################################
     def build_anki_editor_page(self, parent_widget: QWidget):
-        outer_layout = QVBoxLayout(parent_widget)
+        """Create the revamped Create Anki Card interface."""
+        main_vbox = QVBoxLayout(parent_widget)
 
-        # -- Create a horizontal layout to hold the title label and deck combo --
+        # ------------------------------------------------------------------
+        # Top toolbar with actions
+        # ------------------------------------------------------------------
+        toolbar = QToolBar()
+        act_back = QAction("Back", self)
+        act_back.triggered.connect(self.on_back_to_subtitles_clicked)
+        toolbar.addAction(act_back)
+
+        act_add = QAction("Add Card", self)
+        act_add.triggered.connect(self.on_add_card_triggered)
+        toolbar.addAction(act_add)
+
+        act_add_study = QAction("Add and Study", self)
+        act_add_study.triggered.connect(self.on_add_and_study_triggered)
+        toolbar.addAction(act_add_study)
+
+        main_vbox.addWidget(toolbar)
+
+        # ------------------------------------------------------------------
+        # Sidebar tabs
+        # ------------------------------------------------------------------
+        tab_widget = QTabWidget()
+        tab_widget.setTabPosition(QTabWidget.West)
+        main_vbox.addWidget(tab_widget, 1)
+
+        # === Card Editor Page =============================================
+        editor_page = QWidget()
+        outer_layout = QVBoxLayout(editor_page)
+
+        # Deck selection row
         title_layout = QHBoxLayout()
 
         lbl_title = QLabel("Create Anki Card (Word Selection In Situ)")
@@ -1597,10 +1627,10 @@ class SubtitleWindow(QDialog):
         lbl_title.setFont(f)
         title_layout.addWidget(lbl_title)
 
-        # The combo box for deck selection:
         self.deck_combo = QComboBox()
         title_layout.addWidget(QLabel("Deck:"))
         title_layout.addWidget(self.deck_combo)
+        title_layout.addStretch()
 
         outer_layout.addLayout(title_layout)
 
@@ -1680,6 +1710,16 @@ class SubtitleWindow(QDialog):
         # ------------------- NEW FIELD for IMAGES -------------------
         self.field_image = QLineEdit()
         form_layout.addRow("Images Field:", self.field_image)
+
+        # Placeholder frame for previewing a single image
+        self.image_preview = QFrame()
+        self.image_preview.setFrameShape(QFrame.Box)
+        self.image_preview.setFixedSize(200, 200)
+        preview_layout = QVBoxLayout(self.image_preview)
+        self.image_preview_label = QLabel()
+        self.image_preview_label.setScaledContents(True)
+        preview_layout.addWidget(self.image_preview_label)
+        form_layout.addRow("Preview:", self.image_preview)
         # We'll connect a signal so that when user edits the text, we re-preview images:
         self.field_image.textChanged.connect(self.on_field_image_changed)
         # -----------------------------------------------------------
@@ -1731,15 +1771,11 @@ class SubtitleWindow(QDialog):
         # -----------------------------
         # Expandable Translation Section
         # -----------------------------
-        self.translation_toggle_btn = QToolButton()
-        self.translation_toggle_btn.setText("Show Translations")
-        self.translation_toggle_btn.setCheckable(True)
-        self.translation_toggle_btn.setArrowType(Qt.RightArrow)
-        self.translation_toggle_btn.clicked.connect(self.on_translation_toggled)
-        form_layout.addRow("Translations:", self.translation_toggle_btn)
+        trans_group = QGroupBox("Translations")
+        trans_group.setCheckable(True)
+        trans_group.setChecked(False)
 
-        self.translation_widget = QWidget()
-        translation_layout = QFormLayout(self.translation_widget)
+        translation_layout = QFormLayout(trans_group)
         self.field_translated_word = QLineEdit()
         translation_layout.addRow("Translated Word:", self.field_translated_word)
 
@@ -1751,26 +1787,21 @@ class SubtitleWindow(QDialog):
         self.btn_dictionary_search.clicked.connect(self.on_open_dictionary_search)
         translation_layout.addWidget(self.btn_dictionary_search)
 
-        self.translation_widget.setVisible(False)
-        form_layout.addRow(self.translation_widget)
+        form_layout.addRow(trans_group)
         # -----------------------------
 
         outer_layout.addWidget(card_details_group)
         outer_layout.addSpacerItem(QSpacerItem(10, 10))
-        parent_widget.setLayout(outer_layout)
+        editor_page.setLayout(outer_layout)
+
+        tab_widget.addTab(editor_page, "Card Editor")
+        tab_widget.addTab(QWidget(), "Dictionary")
+        tab_widget.addTab(QWidget(), "Word Viewer")
+
+        parent_widget.setLayout(main_vbox)
 
         self.anki_selected_dict_form_ids = set()
 
-    # -- NEW: Toggle the translations section
-    def on_translation_toggled(self, checked):
-        if checked:
-            self.translation_toggle_btn.setText("Hide Translations")
-            self.translation_toggle_btn.setArrowType(Qt.DownArrow)
-            self.translation_widget.setVisible(True)
-        else:
-            self.translation_toggle_btn.setText("Show Translations")
-            self.translation_toggle_btn.setArrowType(Qt.RightArrow)
-            self.translation_widget.setVisible(False)
 
     def on_prompt_image_clicked(self):
         """
@@ -1844,6 +1875,7 @@ class SubtitleWindow(QDialog):
             w = item.widget()
             if w:
                 w.deleteLater()
+        self.image_preview_label.clear()
 
         textval = self.field_image.text().strip()
         if not textval:
@@ -1857,18 +1889,19 @@ class SubtitleWindow(QDialog):
             return
 
         # 3) For each filename, create a QLabel with a 200x200 preview
-        for filename in matches:
+        for idx, filename in enumerate(matches):
             label = QLabel()
             label.setFixedSize(200, 200)
             label.setStyleSheet("border: 1px solid gray;")
             label.setScaledContents(True)
 
-            # Build full path inside anki_media_path
             full_path = os.path.join(self.anki_media_path, filename)
             if os.path.exists(full_path):
                 pixmap = QPixmap(full_path)
                 if not pixmap.isNull():
                     label.setPixmap(pixmap)
+                    if idx == 0:
+                        self.image_preview_label.setPixmap(pixmap)
                 else:
                     label.setText(f"Invalid image data: {filename}")
             else:
