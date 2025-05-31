@@ -694,6 +694,8 @@ class CentralHub(QMainWindow):
         if new_widget == self.page_study_explore:
             # Now load the random sentence only when user lands on Explore
             self.load_random_sentence_explore()
+        elif new_widget == self.page_study_kanji:
+            self.refresh_deferred_kanji_count()
 
     def jump_to_time(self, start_time: float):
         """
@@ -2714,6 +2716,17 @@ class CentralHub(QMainWindow):
         self.db.parse_pending_kanji()
         self.statusBar().showMessage("Kanji parsing complete.")
 
+    def on_parse_deferred_kanji_clicked(self):
+        """Slot for the button on the Kanji study tab."""
+        self.parse_pending_kanji()
+        self.refresh_deferred_kanji_count()
+
+    def refresh_deferred_kanji_count(self):
+        """Update the label showing how many entries still need parsing."""
+        count = self.db.count_deferred_kanji()
+        if hasattr(self, "label_deferred_kanji"):
+            self.label_deferred_kanji.setText(f"Deferred Kanji: {count}")
+
     ##########################################################################
     # Study Page
     ##########################################################################
@@ -3036,8 +3049,16 @@ class CentralHub(QMainWindow):
     def create_study_kanji_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.addWidget(QLabel("Kanji Tab Placeholder - Coming Soon!"))
+
+        self.label_deferred_kanji = QLabel("Deferred Kanji: 0")
+        layout.addWidget(self.label_deferred_kanji)
+
+        btn_parse = QPushButton("Parse Deferred Kanji")
+        btn_parse.clicked.connect(self.on_parse_deferred_kanji_clicked)
+        layout.addWidget(btn_parse)
+
         layout.addStretch()
+        self.refresh_deferred_kanji_count()
         return page
 
     def create_study_explore_page(self) -> QWidget:
