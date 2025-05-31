@@ -11,6 +11,7 @@ from typing import Optional
 import openai
 import requests
 import re
+from file_utils import normalize_filename, parse_filename_for_show_episode
 
 
 # -------------------------------------------------------------------
@@ -838,14 +839,8 @@ class CentralHub(QMainWindow):
         self.db._conn.commit()
 
     def normalize_filename(self, stem: str) -> str:
-        """
-        Remove bracketed tags like [MTBB], [4D8BA5C7],
-        convert multiple spaces/dashes, etc.
-        """
-        temp = re.sub(r'\[.*?\]', '', stem)  # remove [stuff]
-        temp = temp.replace('-', ' ')
-        temp = re.sub(r'\s+', ' ', temp)
-        return temp.strip().lower()  # optional .lower()
+        """Wrapper around :func:`file_utils.normalize_filename`."""
+        return normalize_filename(stem)
 
     def walk_and_index(self, folder_path: str):
         logger.info(f"Starting walk_and_index for folder: {folder_path}")
@@ -881,8 +876,11 @@ class CentralHub(QMainWindow):
                 media_id = self.db.add_media(str(vid_path), media_type="video")
                 exact_stem = vid_path.stem
                 norm_stem = self.normalize_filename(exact_stem)
+                show, season, episode = parse_filename_for_show_episode(exact_stem)
                 logger.info(
                     f"Video path='{vid_path}', exact_stem='{exact_stem}', norm_stem='{norm_stem}' => media_id={media_id}")
+                logger.debug(
+                    f"Parsed title='{show}', season={season}, episode={episode}")
 
                 video_map_exact[exact_stem] = (media_id, vid_path)
                 video_map_normalized[norm_stem] = (media_id, vid_path)
