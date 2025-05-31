@@ -257,7 +257,8 @@ class SubtitleWindow(QDialog):
     pausePlayRequested = pyqtSignal()
     editorBackToSubtitles = pyqtSignal()
     def __init__(self, subtitle_lines=None, parent=None, db_manager=None, anki_connector=None,
-                 google_credentials=None, anki_media_path="", audio_player=None, openai_api_key=""):
+                 google_credentials=None, anki_media_path="", audio_player=None,
+                 openai_api_key="", tmdb_api_key=""):
         super().__init__(parent)
         self.db_manager = db_manager
         self.anki = anki_connector
@@ -265,6 +266,7 @@ class SubtitleWindow(QDialog):
         self.anki_media_path = anki_media_path
         self.audio_player = audio_player
         self.openai_api_key = openai_api_key
+        self.tmdb_api_key = tmdb_api_key
         self.parser = ContentParser()
         self._subtitle_lines = []
 

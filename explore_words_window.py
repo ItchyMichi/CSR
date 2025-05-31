@@ -23,6 +23,7 @@ class ExploreWordsWindow(QMainWindow):
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
         self.anki_media_path = self.config.get("PATHS", "anki_media_path", fallback="")
+        self.tmdb_api_key = self.config['DEFAULT'].get('TMDB_API_Key', '')
 
         # Audio player
         self.player = QMediaPlayer()
