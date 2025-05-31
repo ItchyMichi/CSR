@@ -1666,107 +1666,11 @@ class SubtitleWindow(QDialog):
         self.field_native_sentence.setFixedHeight(60)
         form_layout.addRow("Native Sentence:", self.field_native_sentence)
 
-        # 3) Word Audio
-        audio_layout_word = QHBoxLayout()
-        self.field_word_audio = QLineEdit()
-        audio_layout_word.addWidget(self.field_word_audio)
-        btn_play_word = QPushButton("Play")
-        btn_play_word.clicked.connect(self.play_word_audio_placeholder)
-        audio_layout_word.addWidget(btn_play_word)
-        btn_gen_word_audio = QPushButton("Generate Word Audio")
-        btn_gen_word_audio.clicked.connect(self.generate_word_audio_placeholder)
-        audio_layout_word.addWidget(btn_gen_word_audio)
-        form_layout.addRow("Word Audio:", audio_layout_word)
-
-        # 4) Sentence Audio
-        audio_layout_sentence = QVBoxLayout()
-        row1 = QHBoxLayout()
-        self.field_sentence_audio = QLineEdit()
-        row1.addWidget(self.field_sentence_audio)
-        btn_play_sentence = QPushButton("Play")
-        btn_play_sentence.clicked.connect(self.play_sentence_audio_all)
-        row1.addWidget(btn_play_sentence)
-        audio_layout_sentence.addLayout(row1)
-
-        row2 = QHBoxLayout()
-        row2.addWidget(QLabel("Video Tab:"))
-        self.combo_video_tabs_for_sentence = QComboBox()
-        self.combo_video_tabs_for_sentence.addItem("Tab A (placeholder)")
-        self.combo_video_tabs_for_sentence.addItem("Tab B (placeholder)")
-        row2.addWidget(self.combo_video_tabs_for_sentence)
-        btn_capture_sentence_audio = QPushButton("Capture Audio (placeholder)")
-        btn_capture_sentence_audio.clicked.connect(self.capture_sentence_audio_placeholder)
-        row2.addWidget(btn_capture_sentence_audio)
-        audio_layout_sentence.addLayout(row2)
-
-        form_layout.addRow("Sentence Audio:", audio_layout_sentence)
-
         # 5) POS
         self.field_pos = QPlainTextEdit()
         self.field_pos.setReadOnly(True)
         self.field_pos.setFixedHeight(60)
         form_layout.addRow("POS (all selected):", self.field_pos)
-
-        # ------------------- NEW FIELD for IMAGES -------------------
-        self.field_image = QLineEdit()
-        form_layout.addRow("Images Field:", self.field_image)
-
-        # Placeholder frame for previewing a single image
-        self.image_preview = QFrame()
-        self.image_preview.setFrameShape(QFrame.Box)
-        self.image_preview.setFixedSize(200, 200)
-        preview_layout = QVBoxLayout(self.image_preview)
-        self.image_preview_label = QLabel()
-        self.image_preview_label.setScaledContents(True)
-        preview_layout.addWidget(self.image_preview_label)
-        form_layout.addRow("Preview:", self.image_preview)
-        # We'll connect a signal so that when user edits the text, we re-preview images:
-        self.field_image.textChanged.connect(self.on_field_image_changed)
-        # -----------------------------------------------------------
-
-        # 6) Images - now a scroll area that shows all <img src="..."> from field_image
-        image_layout = QVBoxLayout()
-
-        # Scroll area for image previews
-        self.images_scroll = QScrollArea()
-        self.images_scroll.setWidgetResizable(True)
-
-        # Container for actual image labels
-        self.images_container = QWidget()
-        self.images_layout = QHBoxLayout(self.images_container)
-        self.images_layout.setSpacing(5)
-        self.images_layout.setContentsMargins(0, 0, 0, 0)
-        self.images_container.setLayout(self.images_layout)
-
-        self.images_scroll.setWidget(self.images_container)
-        image_layout.addWidget(self.images_scroll)
-
-        row_img = QHBoxLayout()
-        row_img.addWidget(QLabel("Video Tab:"))
-        self.combo_video_tabs_for_image = QComboBox()
-        self.combo_video_tabs_for_image.addItem("Tab A (placeholder)")
-        self.combo_video_tabs_for_image.addItem("Tab B (placeholder)")
-        row_img.addWidget(self.combo_video_tabs_for_image)
-        btn_capture_image = QPushButton("Capture Screenshot (placeholder)")
-        btn_capture_image.clicked.connect(self.capture_screenshot_placeholder)
-        row_img.addWidget(btn_capture_image)
-        image_layout.addLayout(row_img)
-
-        btn_generate_image = QPushButton("Generate Image")
-        btn_generate_image.clicked.connect(self.generate_image_placeholder)
-        image_layout.addWidget(btn_generate_image)
-
-        # NEW BUTTON
-        btn_prompt_image = QPushButton("Prompt an Image")
-        btn_prompt_image.clicked.connect(self.on_prompt_image_clicked)
-        image_layout.addWidget(btn_prompt_image)
-
-        btn_generate_word_image = QPushButton("Generate Word Image")
-        btn_generate_word_image.clicked.connect(self.generate_word_image_async)
-        image_layout.addWidget(btn_generate_word_image)
-
-        form_layout.addRow("Images:", image_layout)
-        # -----------------------------------------------------------
 
         # -----------------------------
         # Expandable Translation Section
@@ -1794,9 +1698,101 @@ class SubtitleWindow(QDialog):
         outer_layout.addSpacerItem(QSpacerItem(10, 10))
         editor_page.setLayout(outer_layout)
 
+        # === Images Page ================================================
+        images_page = QWidget()
+        images_form = QFormLayout(images_page)
+
+        self.field_image = QLineEdit()
+        images_form.addRow("Images Field:", self.field_image)
+
+        self.image_preview = QFrame()
+        self.image_preview.setFrameShape(QFrame.Box)
+        self.image_preview.setFixedSize(200, 200)
+        preview_layout = QVBoxLayout(self.image_preview)
+        self.image_preview_label = QLabel()
+        self.image_preview_label.setScaledContents(True)
+        preview_layout.addWidget(self.image_preview_label)
+        images_form.addRow("Preview:", self.image_preview)
+        self.field_image.textChanged.connect(self.on_field_image_changed)
+
+        image_layout = QVBoxLayout()
+        self.images_scroll = QScrollArea()
+        self.images_scroll.setWidgetResizable(True)
+
+        self.images_container = QWidget()
+        self.images_layout = QHBoxLayout(self.images_container)
+        self.images_layout.setSpacing(5)
+        self.images_layout.setContentsMargins(0, 0, 0, 0)
+        self.images_container.setLayout(self.images_layout)
+
+        self.images_scroll.setWidget(self.images_container)
+        image_layout.addWidget(self.images_scroll)
+
+        row_img = QHBoxLayout()
+        row_img.addWidget(QLabel("Video Tab:"))
+        self.combo_video_tabs_for_image = QComboBox()
+        self.combo_video_tabs_for_image.addItem("Tab A (placeholder)")
+        self.combo_video_tabs_for_image.addItem("Tab B (placeholder)")
+        row_img.addWidget(self.combo_video_tabs_for_image)
+        btn_capture_image = QPushButton("Capture Screenshot (placeholder)")
+        btn_capture_image.clicked.connect(self.capture_screenshot_placeholder)
+        row_img.addWidget(btn_capture_image)
+        image_layout.addLayout(row_img)
+
+        btn_generate_image = QPushButton("Generate Image")
+        btn_generate_image.clicked.connect(self.generate_image_placeholder)
+        image_layout.addWidget(btn_generate_image)
+
+        btn_prompt_image = QPushButton("Prompt an Image")
+        btn_prompt_image.clicked.connect(self.on_prompt_image_clicked)
+        image_layout.addWidget(btn_prompt_image)
+
+        btn_generate_word_image = QPushButton("Generate Word Image")
+        btn_generate_word_image.clicked.connect(self.generate_word_image_async)
+        image_layout.addWidget(btn_generate_word_image)
+
+        images_form.addRow("Images:", image_layout)
+
+        # === Audio Page ==================================================
+        audio_page = QWidget()
+        audio_form = QFormLayout(audio_page)
+
+        audio_layout_word = QHBoxLayout()
+        self.field_word_audio = QLineEdit()
+        audio_layout_word.addWidget(self.field_word_audio)
+        btn_play_word = QPushButton("Play")
+        btn_play_word.clicked.connect(self.play_word_audio_placeholder)
+        audio_layout_word.addWidget(btn_play_word)
+        btn_gen_word_audio = QPushButton("Generate Word Audio")
+        btn_gen_word_audio.clicked.connect(self.generate_word_audio_placeholder)
+        audio_layout_word.addWidget(btn_gen_word_audio)
+        audio_form.addRow("Word Audio:", audio_layout_word)
+
+        audio_layout_sentence = QVBoxLayout()
+        row1 = QHBoxLayout()
+        self.field_sentence_audio = QLineEdit()
+        row1.addWidget(self.field_sentence_audio)
+        btn_play_sentence = QPushButton("Play")
+        btn_play_sentence.clicked.connect(self.play_sentence_audio_all)
+        row1.addWidget(btn_play_sentence)
+        audio_layout_sentence.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Video Tab:"))
+        self.combo_video_tabs_for_sentence = QComboBox()
+        self.combo_video_tabs_for_sentence.addItem("Tab A (placeholder)")
+        self.combo_video_tabs_for_sentence.addItem("Tab B (placeholder)")
+        row2.addWidget(self.combo_video_tabs_for_sentence)
+        btn_capture_sentence_audio = QPushButton("Capture Audio (placeholder)")
+        btn_capture_sentence_audio.clicked.connect(self.capture_sentence_audio_placeholder)
+        row2.addWidget(btn_capture_sentence_audio)
+        audio_layout_sentence.addLayout(row2)
+
+        audio_form.addRow("Sentence Audio:", audio_layout_sentence)
+
         tab_widget.addTab(editor_page, "Card Contents")
-        tab_widget.addTab(QWidget(), "Images")
-        tab_widget.addTab(QWidget(), "Audio")
+        tab_widget.addTab(images_page, "Images")
+        tab_widget.addTab(audio_page, "Audio")
         tab_widget.addTab(QWidget(), "Dictionary")
 
         parent_widget.setLayout(main_vbox)
