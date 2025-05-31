@@ -65,12 +65,14 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QComboBox,
     QScrollArea,
-    QCheckBox, QMessageBox, QDialog, QTabWidget, QSlider, QMenu, QSpinBox
+    QCheckBox, QMessageBox, QDialog, QTabWidget, QSlider, QMenu, QSpinBox,
+    QDialogButtonBox
 )
 from google.cloud import texttospeech
 
 from content_parser import ContentParser
 from deck_field_mapping_dialog import DeckFieldMappingDialog
+from metadata_edit_dialog import MetadataEditDialog
 from subtitle_window import SubtitleWindow
 from subtitles import SubtitleManager
 
@@ -1106,6 +1108,8 @@ class CentralHub(QMainWindow):
             self.detail_text.setText("Folder node from the pseudo explorer.")
         elif data_type == "media_file":
             self.detail_label.setText(f"Media ID: {db_id}")
+            self.btn_action1.setText("Play")
+            self.btn_action2.setText("Edit Metadata")
 
             # 1) fetch from DB
             info = self.db.get_media_info(db_id)
@@ -1239,8 +1243,35 @@ class CentralHub(QMainWindow):
         else:
             self.statusBar().showMessage("Action 1 triggered (non-video).")
 
+    def edit_metadata(self, media_id: int):
+        """Open a dialog to manually edit metadata for the selected episode."""
+        info = self.db.get_media_info(media_id)
+        if not info:
+            QMessageBox.warning(self, "Error", "No media info found in DB.")
+            return
+
+        file_stem = Path(info["file_path"]).stem
+        show, season, episode = parse_filename_for_show_episode(file_stem)
+        dialog = MetadataEditDialog(show, season, episode, self)
+        if dialog.exec_() == QDialog.Accepted:
+            show, season, episode = dialog.get_values()
+            metadata_utils.fetch_and_store_metadata(media_id, show, season, episode)
+            self.update_detail_panel("media_file", media_id)
+
     def perform_action2(self):
-        self.statusBar().showMessage("Performed Action 2 on the selected item.")
+        item = self.tree_widget.currentItem()
+        if not item:
+            return
+        data = item.data(0, Qt.UserRole)
+        if not data:
+            return
+
+        data_type = data[0]
+        if data_type == "media_file":
+            media_id = data[1]
+            self.edit_metadata(media_id)
+        else:
+            self.statusBar().showMessage("Performed Action 2 on the selected item.")
 
     def add_source_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Root Folder")
