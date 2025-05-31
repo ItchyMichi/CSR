@@ -111,9 +111,7 @@ def parse_filename_for_show_episode(stem: str):
             if "episode" in m.groupdict() and m.group("episode"):
                 episode = int(m.group("episode"))
 
-            # If no explicit season was found but an episode is present, default season to 1
-            if season is None and episode is not None:
-                season = 1
+
 
             return title, season, episode
 

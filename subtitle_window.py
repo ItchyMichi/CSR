@@ -1794,9 +1794,10 @@ class SubtitleWindow(QDialog):
         outer_layout.addSpacerItem(QSpacerItem(10, 10))
         editor_page.setLayout(outer_layout)
 
-        tab_widget.addTab(editor_page, "Card Editor")
+        tab_widget.addTab(editor_page, "Card Contents")
+        tab_widget.addTab(QWidget(), "Images")
+        tab_widget.addTab(QWidget(), "Audio")
         tab_widget.addTab(QWidget(), "Dictionary")
-        tab_widget.addTab(QWidget(), "Word Viewer")
 
         parent_widget.setLayout(main_vbox)
 
