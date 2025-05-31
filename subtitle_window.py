@@ -275,6 +275,9 @@ class SubtitleWindow(QDialog):
 
         self.selected_dict_form_ids = set()
         self.anki_selected_dict_form_surfaces = {}
+        # Maintain the order of dictionary form IDs for the current sentence
+        # so selected words appear in sentence order
+        self.anki_sentence_df_order = []
         self.current_font_size = 10  # Default font size
         self._image_queue = []  # background image generation tasks
         self._current_worker = None
@@ -2450,6 +2453,9 @@ class SubtitleWindow(QDialog):
             self.anki_grid_layout.addWidget(no_label, 0, 0, 1, 1)
             return
 
+        # Store the dictionary form IDs in the order they appear in this sentence
+        self.anki_sentence_df_order = [df_id for (_, _, df_id, _, _) in forms]
+
         label_select = QLabel("Select")
         label_select.setAlignment(Qt.AlignRight)
         label_select.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -2490,6 +2496,8 @@ class SubtitleWindow(QDialog):
             w = item.widget()
             if w:
                 w.deleteLater()
+        # Reset stored order when grid is cleared
+        self.anki_sentence_df_order = []
 
     def sync_anki(self):
         """
@@ -2546,20 +2554,23 @@ class SubtitleWindow(QDialog):
         selected_surfaces = []
         pos_list = []
 
-        for df_id in self.anki_selected_dict_form_ids:
+        # Iterate over dictionary form IDs in sentence order
+        for df_id in self.anki_sentence_df_order:
+            if df_id not in self.anki_selected_dict_form_ids:
+                continue
+
             # 1) The surface form was cached in our dict:
             surf = self.anki_selected_dict_form_surfaces.get(df_id, "")
             selected_surfaces.append(surf)
 
-            # 2) If you also want to gather POS from the DB:
+            # 2) Also gather POS information for the word
             info = self.db_manager.get_dict_form_info(df_id)
             if info:
                 pos = info.get("pos", "")
                 pos_list.append(pos)
 
-        # e.g. "食べた, 飲んだ"
-        joined_surfaces = ", ".join(selected_surfaces)
-        # e.g. "Verb, Verb"
+        # Join words and POS without commas
+        joined_surfaces = " ".join(selected_surfaces)
         joined_pos = ", ".join(pos_list)
 
         # Now put that into the "native word" field:
