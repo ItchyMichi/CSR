@@ -12,6 +12,7 @@ import openai
 import requests
 import re
 from file_utils import normalize_filename, parse_filename_for_show_episode
+import metadata_utils
 
 
 # -------------------------------------------------------------------
@@ -469,6 +470,9 @@ class CentralHub(QMainWindow):
         self.openai_api_key = self.config.get("DEFAULT", "OpenAI_API_Key", fallback="")
         self.tmdb_api_key = self.config.get("DEFAULT", "TMDB_API_Key", fallback="")
 
+        metadata_utils.TMDB_API_KEY = self.tmdb_api_key
+        metadata_utils.DB_MANAGER = self.db
+
         # Create a QMediaPlayer for playing audio in the Deck Editor
         self.audio_player = QMediaPlayer()
 
@@ -884,6 +888,12 @@ class CentralHub(QMainWindow):
 
                 video_map_exact[exact_stem] = (media_id, vid_path)
                 video_map_normalized[norm_stem] = (media_id, vid_path)
+
+                if not self.db.media_has_description(media_id):
+                    try:
+                        metadata_utils.fetch_and_store_metadata(media_id, show, season, episode)
+                    except Exception as fetch_err:
+                        logger.exception(f"Metadata fetch failed for {vid_path}: {fetch_err}")
             except Exception as e:
                 logger.exception(f"Error adding media {vid_path}: {e}")
 

@@ -662,6 +662,13 @@ class DatabaseManager:
         row = cur.fetchone()
         return row is not None
 
+    def media_has_description(self, media_id: int) -> bool:
+        """Return True if the media record has a non-empty description."""
+        cur = self._conn.cursor()
+        cur.execute("SELECT description FROM media WHERE media_id = ?", (media_id,))
+        row = cur.fetchone()
+        return bool(row and row[0])
+
     def add_subtitle(self, media_id: int, subtitle_file: str, language: str = "unknown", format: str = "srt") -> int:
         """
         Inserts a subtitle file record associated with a media file.
